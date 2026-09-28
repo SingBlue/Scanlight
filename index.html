@@ -52,7 +52,6 @@
     letter-spacing:-0.01em;
   }
   header h1 span{color:var(--amber);}
-  header p{margin:2px 0 0; color:var(--text-dim); font-size:0.85rem;}
 
   .card{
     background:var(--surface);
@@ -84,33 +83,69 @@
     color:#1C1305;
   }
 
-  /* capture area */
-  .stage{
-    position:relative;
+  input[type=file]{display:none;}
+
+  /* ---------- empty state ---------- */
+  .empty-state{
     border-radius:14px;
-    overflow:hidden;
-    background:var(--surface-2);
     border:1px dashed var(--line);
+    background:var(--surface-2);
     aspect-ratio:3/4;
     display:flex;
     align-items:center;
     justify-content:center;
+    cursor:pointer;
   }
-  .stage img{width:100%; height:100%; object-fit:contain; display:block;}
-  .stage.empty{cursor:pointer;}
   .empty-hint{
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    gap:10px;
-    color:var(--text-dim);
-    padding:20px;
-    text-align:center;
+    display:flex; flex-direction:column; align-items:center; gap:10px;
+    color:var(--text-dim); padding:20px; text-align:center;
   }
   .empty-hint svg{width:40px; height:40px; opacity:.7;}
   .empty-hint b{color:var(--text); font-weight:600; font-size:0.95rem;}
   .empty-hint span{font-size:0.8rem;}
 
+  /* ---------- crop state ---------- */
+  .crop-wrap{
+    position:relative;
+    border-radius:14px;
+    overflow:hidden;
+    background:#000;
+    touch-action:none;
+    user-select:none;
+  }
+  .crop-img{width:100%; display:block; -webkit-user-drag:none;}
+  .crop-overlay{position:absolute; inset:0; width:100%; height:100%; display:block;}
+  #cropMask{fill:rgba(6,7,10,0.6);}
+  #cropPoly{fill:none; stroke:var(--amber); stroke-width:2; vector-effect:non-scaling-stroke;}
+  .handle{
+    position:absolute;
+    width:30px; height:30px;
+    margin-left:-15px; margin-top:-15px;
+    border-radius:50%;
+    background:var(--amber);
+    border:3px solid var(--paper);
+    box-shadow:0 2px 6px rgba(0,0,0,.4);
+    touch-action:none;
+    cursor:grab;
+  }
+  .handle:active{cursor:grabbing; transform:scale(1.1);}
+  .crop-hint{
+    text-align:center; color:var(--text-dim); font-size:0.82rem;
+    margin:12px 0 0;
+  }
+
+  /* ---------- preview state ---------- */
+  .preview-wrap{
+    border-radius:14px;
+    overflow:hidden;
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .preview-wrap canvas{width:100%; display:block;}
+  .preview-wrap.scanning{position:relative;}
   .scanline{
     position:absolute; left:6%; right:6%; height:3px;
     background:linear-gradient(90deg, transparent, var(--amber), transparent);
@@ -119,16 +154,15 @@
     animation:sweep 1.6s ease-in-out infinite;
     display:none;
   }
-  .stage.scanning .scanline{display:block;}
+  .preview-wrap.scanning .scanline{display:block;}
   @keyframes sweep{
     0%{top:8%;}
     50%{top:88%;}
     100%{top:8%;}
   }
 
-  input[type=file]{display:none;}
-
   .actions-row{display:flex; gap:10px; margin-top:14px;}
+  .secondary-row{display:flex; gap:10px; margin-top:10px;}
   button{
     font-family:inherit;
     font-size:0.95rem;
@@ -146,8 +180,8 @@
   button:active{transform:scale(0.97);}
   button:disabled{opacity:.45; cursor:not-allowed;}
   .btn-primary{background:var(--amber); color:#1C1305; flex:1;}
-  .btn-ghost{background:var(--surface-2); color:var(--text); border:1px solid var(--line);}
-  .btn-ghost.small{padding:10px 14px; font-size:0.85rem; flex:none;}
+  .btn-ghost{background:var(--surface-2); color:var(--text); border:1px solid var(--line); flex:1;}
+  .btn-ghost.small{padding:10px 14px; font-size:0.85rem;}
 
   .status{
     display:flex; align-items:center; gap:10px;
@@ -187,6 +221,47 @@
   .result-actions{display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;}
   .result-actions button{flex:1; min-width:100px;}
 
+  /* ---------- batch tray ---------- */
+  .batch-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;}
+  .batch-head h2{
+    font-family:'Fraunces',serif; font-weight:600; font-size:1.05rem; margin:0;
+  }
+  .batch-count{font-size:0.78rem; color:var(--text-dim);}
+  .batch-empty{color:var(--text-dim); font-size:0.85rem; padding:10px 2px 4px;}
+  .batch-tray{
+    display:flex; gap:10px; overflow-x:auto; padding:12px 2px 4px;
+    -webkit-overflow-scrolling:touch;
+  }
+  .batch-thumb{
+    position:relative; flex:0 0 auto; width:76px;
+  }
+  .batch-thumb img{
+    width:76px; height:100px; object-fit:cover; display:block;
+    border-radius:8px; border:1px solid var(--line); background:var(--surface-2);
+  }
+  .batch-page-num{
+    position:absolute; left:4px; bottom:4px;
+    background:rgba(6,7,10,0.7); color:var(--text);
+    font-size:0.68rem; font-weight:700; padding:1px 6px; border-radius:999px;
+  }
+  .batch-remove{
+    position:absolute; top:-6px; right:-6px;
+    width:22px; height:22px; border-radius:50%;
+    background:var(--danger); color:#fff; border:2px solid var(--surface);
+    font-size:0.75rem; font-weight:700; line-height:1;
+    display:flex; align-items:center; justify-content:center;
+    padding:0; cursor:pointer;
+  }
+  .batch-dl{
+    position:absolute; bottom:4px; right:4px;
+    width:22px; height:22px; border-radius:50%;
+    background:rgba(6,7,10,0.7); color:var(--text); border:none;
+    display:flex; align-items:center; justify-content:center;
+    padding:0; cursor:pointer;
+  }
+  .batch-dl svg{width:12px; height:12px;}
+  .batch-actions{display:flex; gap:10px; margin-top:6px;}
+
   footer{
     text-align:center;
     color:var(--text-dim);
@@ -207,13 +282,6 @@
     white-space:nowrap;
   }
   .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
-
-  @media (prefers-color-scheme: light){
-    :root:not([data-theme="dark"]){
-      --bg:#1C1F26;
-      --text:#EDEBE3;
-    }
-  }
 </style>
 </head>
 <body>
@@ -232,25 +300,72 @@
   </div>
 
   <div class="card">
-    <div class="stage empty" id="stage">
-      <div class="scanline"></div>
-      <div class="empty-hint" id="emptyHint">
+
+    <!-- state 1: nothing captured yet -->
+    <div class="empty-state" id="emptyState">
+      <div class="empty-hint">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2"/><path d="M4 16v2a2 2 0 0 0 2 2h2"/><path d="M20 8V6a2 2 0 0 0-2-2h-2"/><path d="M20 16v2a2 2 0 0 1-2 2h-2"/><circle cx="12" cy="12" r="3.2"/></svg>
         <b>Tap to scan a page</b>
         <span>Camera opens automatically</span>
       </div>
-      <img id="preview" alt="" style="display:none;">
     </div>
-    <input type="file" id="fileInput" accept="image/*" capture="environment">
 
-    <div class="actions-row">
-      <button class="btn-primary" id="scanBtn">Scan text</button>
-      <button class="btn-ghost small" id="retakeBtn" style="display:none;">Retake</button>
+    <!-- state 2: adjust the 4 corners -->
+    <div id="cropState" style="display:none;">
+      <div class="crop-wrap" id="cropWrap">
+        <img class="crop-img" id="cropImg" alt="">
+        <svg class="crop-overlay" id="cropSvg" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <path id="cropMask" fill-rule="evenodd"></path>
+          <polygon id="cropPoly"></polygon>
+        </svg>
+        <div class="handle" data-i="0"></div>
+        <div class="handle" data-i="1"></div>
+        <div class="handle" data-i="2"></div>
+        <div class="handle" data-i="3"></div>
+      </div>
+      <p class="crop-hint">Drag the corners onto the edges of the page</p>
+      <div class="actions-row">
+        <button class="btn-primary" id="flattenBtn">Flatten</button>
+      </div>
+      <div class="secondary-row">
+        <button class="btn-ghost small" id="useFullBtn">Use full photo</button>
+        <button class="btn-ghost small" id="cropRetakeBtn">Retake</button>
+      </div>
     </div>
+
+    <!-- state 3: flattened result, ready to scan -->
+    <div id="previewState" style="display:none;">
+      <div class="preview-wrap" id="previewWrap">
+        <div class="scanline"></div>
+      </div>
+      <div class="actions-row">
+        <button class="btn-primary" id="addPageBtn">Add to batch</button>
+        <button class="btn-ghost" id="scanBtn">Scan text</button>
+      </div>
+      <div class="secondary-row">
+        <button class="btn-ghost small" id="adjustCropBtn">Adjust crop</button>
+        <button class="btn-ghost small" id="retakeBtn">Retake</button>
+      </div>
+    </div>
+
+    <input type="file" id="fileInput" accept="image/*" capture="environment">
 
     <div class="status" id="status" style="margin-top:12px;">
       <span id="statusText"></span>
       <div class="progress-track" id="progressTrack"><div class="progress-fill" id="progressFill"></div></div>
+    </div>
+  </div>
+
+  <div class="card" id="batchCard">
+    <div class="batch-head">
+      <h2>Scanned pages</h2>
+      <span class="batch-count" id="batchCount">0 pages</span>
+    </div>
+    <p class="batch-empty" id="batchEmptyHint">Pages you add to the batch will show up here, ready to save as one PDF.</p>
+    <div class="batch-tray" id="batchTray"></div>
+    <div class="batch-actions">
+      <button class="btn-primary" id="savePdfBtn" disabled>Save as PDF</button>
+      <button class="btn-ghost small" id="clearBatchBtn" disabled>Clear all</button>
     </div>
   </div>
 
@@ -273,13 +388,35 @@
 <div class="toast" id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/4.0.0/jspdf.umd.min.js"></script>
 <script>
-  const stage = document.getElementById('stage');
-  const emptyHint = document.getElementById('emptyHint');
-  const preview = document.getElementById('preview');
+  /* ============ elements ============ */
+  const emptyState = document.getElementById('emptyState');
+  const cropState = document.getElementById('cropState');
+  const previewState = document.getElementById('previewState');
   const fileInput = document.getElementById('fileInput');
+
+  const cropWrap = document.getElementById('cropWrap');
+  const cropImg = document.getElementById('cropImg');
+  const cropPoly = document.getElementById('cropPoly');
+  const cropMask = document.getElementById('cropMask');
+  const handles = Array.from(document.querySelectorAll('.handle'));
+  const flattenBtn = document.getElementById('flattenBtn');
+  const useFullBtn = document.getElementById('useFullBtn');
+  const cropRetakeBtn = document.getElementById('cropRetakeBtn');
+
+  const previewWrap = document.getElementById('previewWrap');
+  const addPageBtn = document.getElementById('addPageBtn');
   const scanBtn = document.getElementById('scanBtn');
+  const adjustCropBtn = document.getElementById('adjustCropBtn');
   const retakeBtn = document.getElementById('retakeBtn');
+
+  const batchTray = document.getElementById('batchTray');
+  const batchCount = document.getElementById('batchCount');
+  const batchEmptyHint = document.getElementById('batchEmptyHint');
+  const savePdfBtn = document.getElementById('savePdfBtn');
+  const clearBatchBtn = document.getElementById('clearBatchBtn');
+
   const statusText = document.getElementById('statusText');
   const statusRow = document.getElementById('status');
   const progressTrack = document.getElementById('progressTrack');
@@ -296,8 +433,18 @@
   let currentLang = 'heb+eng';
   let worker = null;
   let workerLang = null;
-  let hasImage = false;
 
+  let rawCanvas = null;        // full (downscaled) source photo, off-screen
+  let flattenedCanvas = null;  // result after crop + perspective warp
+  let corners = null;          // 4 normalized {x,y} points: TL, TR, BR, BL
+  let activeHandle = -1;
+  let batchPages = [];         // array of flattened canvases, in order
+
+  function timestamp(){
+    return new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+  }
+
+  /* ============ language chips ============ */
   langChips.forEach(chip=>{
     chip.addEventListener('click', ()=>{
       langChips.forEach(c=>c.classList.remove('active'));
@@ -306,48 +453,322 @@
     });
   });
 
-  stage.addEventListener('click', ()=>{
-    if(!hasImage) fileInput.click();
-  });
+  /* ============ state switching ============ */
+  function showState(name){
+    emptyState.style.display = name === 'empty' ? 'flex' : 'none';
+    cropState.style.display = name === 'crop' ? 'block' : 'none';
+    previewState.style.display = name === 'preview' ? 'block' : 'none';
+    resultsCard.style.display = 'none';
+    setStatus('');
+    setProgress(null);
+  }
+
+  emptyState.addEventListener('click', ()=> fileInput.click());
+  cropRetakeBtn.addEventListener('click', ()=> fileInput.click());
+  retakeBtn.addEventListener('click', ()=> fileInput.click());
 
   fileInput.addEventListener('change', (e)=>{
     const file = e.target.files[0];
     if(!file) return;
     const url = URL.createObjectURL(file);
-    preview.src = url;
-    preview.style.display = 'block';
-    emptyHint.style.display = 'none';
-    stage.classList.remove('empty');
-    hasImage = true;
-    retakeBtn.style.display = 'block';
-    scanBtn.disabled = false;
-    resultsCard.style.display = 'none';
-    setStatus('');
+    const img = new Image();
+    img.onload = ()=>{
+      const maxSide = 2200;
+      let w = img.naturalWidth, h = img.naturalHeight;
+      if (Math.max(w,h) > maxSide){
+        const scale = maxSide/Math.max(w,h);
+        w = Math.round(w*scale); h = Math.round(h*scale);
+      }
+      rawCanvas = document.createElement('canvas');
+      rawCanvas.width = w; rawCanvas.height = h;
+      rawCanvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      enterCropMode(url);
+    };
+    img.src = url;
   });
 
-  retakeBtn.addEventListener('click', ()=>{
-    fileInput.value = '';
-    hasImage = false;
-    preview.style.display = 'none';
-    emptyHint.style.display = 'flex';
-    stage.classList.add('empty');
-    retakeBtn.style.display = 'none';
-    resultsCard.style.display = 'none';
-    setStatus('');
-    fileInput.click();
+  /* ============ crop mode ============ */
+  function enterCropMode(displayUrl){
+    cropImg.src = displayUrl;
+    if(!corners){
+      corners = [
+        {x:0.08, y:0.06}, // TL
+        {x:0.92, y:0.06}, // TR
+        {x:0.92, y:0.94}, // BR
+        {x:0.08, y:0.94}  // BL
+      ];
+    }
+    showState('crop');
+    // wait a tick for layout so handle positions are correct
+    requestAnimationFrame(updateOverlay);
+  }
+
+  function updateOverlay(){
+    handles.forEach((h, i)=>{
+      h.style.left = (corners[i].x*100) + '%';
+      h.style.top = (corners[i].y*100) + '%';
+    });
+    const pts = corners.map(c => (c.x*100)+','+(c.y*100)).join(' ');
+    cropPoly.setAttribute('points', pts);
+    cropMask.setAttribute('d', `M0,0 H100 V100 H0 Z M ${pts.split(' ').join(' L ')} Z`);
+  }
+
+  handles.forEach(h=>{
+    const idx = parseInt(h.dataset.i, 10);
+    h.addEventListener('pointerdown', (e)=>{
+      e.preventDefault();
+      activeHandle = idx;
+      h.setPointerCapture(e.pointerId);
+    });
+    h.addEventListener('pointermove', (e)=>{
+      if(activeHandle !== idx) return;
+      const rect = cropWrap.getBoundingClientRect();
+      let nx = (e.clientX - rect.left) / rect.width;
+      let ny = (e.clientY - rect.top) / rect.height;
+      nx = Math.min(1, Math.max(0, nx));
+      ny = Math.min(1, Math.max(0, ny));
+      corners[idx] = {x:nx, y:ny};
+      updateOverlay();
+    });
+    h.addEventListener('pointerup', ()=>{ activeHandle = -1; });
+    h.addEventListener('pointercancel', ()=>{ activeHandle = -1; });
   });
 
+  useFullBtn.addEventListener('click', ()=>{
+    flattenedCanvas = rawCanvas;
+    enterPreviewMode();
+  });
+
+  flattenBtn.addEventListener('click', ()=>{
+    const srcCorners = corners.map(c => ({x:c.x*rawCanvas.width, y:c.y*rawCanvas.height}));
+    flattenedCanvas = flattenQuad(rawCanvas, srcCorners);
+    enterPreviewMode();
+  });
+
+  adjustCropBtn.addEventListener('click', ()=>{
+    showState('crop');
+    requestAnimationFrame(updateOverlay);
+  });
+
+  /* ============ preview / scan mode ============ */
+  function enterPreviewMode(){
+    previewWrap.innerHTML = '<div class="scanline"></div>';
+    previewWrap.appendChild(flattenedCanvas);
+    showState('preview');
+  }
+
+  /* ============ batch tray ============ */
+  addPageBtn.addEventListener('click', ()=>{
+    if(!flattenedCanvas) return;
+    batchPages.push(flattenedCanvas);
+    renderBatchTray();
+    showToast('Page ' + batchPages.length + ' added');
+    showState('empty');
+  });
+
+  function renderBatchTray(){
+    const n = batchPages.length;
+    batchCount.textContent = n + (n === 1 ? ' page' : ' pages');
+    batchEmptyHint.style.display = n === 0 ? 'block' : 'none';
+    savePdfBtn.disabled = n === 0;
+    clearBatchBtn.disabled = n === 0;
+
+    batchTray.innerHTML = '';
+    batchPages.forEach((canvas, i)=>{
+      const thumb = document.createElement('div');
+      thumb.className = 'batch-thumb';
+
+      const img = document.createElement('img');
+      img.src = canvas.toDataURL('image/jpeg', 0.6);
+      thumb.appendChild(img);
+
+      const num = document.createElement('span');
+      num.className = 'batch-page-num';
+      num.textContent = i + 1;
+      thumb.appendChild(num);
+
+      const dl = document.createElement('button');
+      dl.className = 'batch-dl';
+      dl.title = 'Save this page as an image';
+      dl.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M6 11l6 6 6-6"/><path d="M5 21h14"/></svg>';
+      dl.addEventListener('click', ()=> downloadPageImage(canvas, i));
+      thumb.appendChild(dl);
+
+      const rm = document.createElement('button');
+      rm.className = 'batch-remove';
+      rm.title = 'Remove this page';
+      rm.textContent = '\u00d7';
+      rm.addEventListener('click', ()=>{
+        batchPages.splice(i, 1);
+        renderBatchTray();
+      });
+      thumb.appendChild(rm);
+
+      batchTray.appendChild(thumb);
+    });
+  }
+
+  function downloadPageImage(canvas, index){
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/jpeg', 0.92);
+    a.download = 'scan-page-' + (index+1) + '-' + timestamp() + '.jpg';
+    a.click();
+  }
+
+  savePdfBtn.addEventListener('click', ()=>{
+    if(batchPages.length === 0) return;
+    const { jsPDF } = window.jspdf;
+    const DPI = 150;
+    const pxToMM = px => px / DPI * 25.4;
+    let doc;
+    batchPages.forEach((canvas, i)=>{
+      const wmm = pxToMM(canvas.width), hmm = pxToMM(canvas.height);
+      const orientation = wmm > hmm ? 'landscape' : 'portrait';
+      if (i === 0){
+        doc = new jsPDF({ unit:'mm', format:[wmm, hmm], orientation });
+      } else {
+        doc.addPage([wmm, hmm], orientation);
+      }
+      const imgData = canvas.toDataURL('image/jpeg', 0.85);
+      doc.addImage(imgData, 'JPEG', 0, 0, wmm, hmm);
+    });
+    doc.save('scan-' + timestamp() + '.pdf');
+    showToast('PDF saved to Downloads');
+  });
+
+  clearBatchBtn.addEventListener('click', ()=>{
+    if(batchPages.length === 0) return;
+    if(!confirm('Remove all ' + batchPages.length + ' scanned pages from the batch?')) return;
+    batchPages = [];
+    renderBatchTray();
+  });
+
+  /* ============ perspective math ============ */
+  function solveLinearSystem(A, b){
+    const n = A.length;
+    const M = A.map((row,i)=>[...row, b[i]]);
+    for (let col=0; col<n; col++){
+      let pivot = col;
+      for (let r=col+1; r<n; r++){ if (Math.abs(M[r][col]) > Math.abs(M[pivot][col])) pivot = r; }
+      [M[col], M[pivot]] = [M[pivot], M[col]];
+      const pv = M[col][col] || 1e-12;
+      for (let r=0; r<n; r++){
+        if (r === col) continue;
+        const f = M[r][col] / pv;
+        for (let c=col; c<=n; c++){ M[r][c] -= f*M[col][c]; }
+      }
+    }
+    return M.map((row,i)=> row[n] / (row[i] || 1e-12));
+  }
+
+  function computeHomography(srcPts, dstPts){
+    const A = [], b = [];
+    for (let i=0;i<4;i++){
+      const {x, y} = srcPts[i];
+      const {x:X, y:Y} = dstPts[i];
+      A.push([x, y, 1, 0, 0, 0, -x*X, -y*X]); b.push(X);
+      A.push([0, 0, 0, x, y, 1, -x*Y, -y*Y]); b.push(Y);
+    }
+    const h = solveLinearSystem(A, b);
+    return [h[0],h[1],h[2], h[3],h[4],h[5], h[6],h[7], 1];
+  }
+
+  function applyH(H, x, y){
+    const w = H[6]*x + H[7]*y + H[8];
+    return { x: (H[0]*x + H[1]*y + H[2]) / w, y: (H[3]*x + H[4]*y + H[5]) / w };
+  }
+
+  function affineFromTriangles(s0,s1,s2,d0,d1,d2){
+    const sx1=s1.x-s0.x, sy1=s1.y-s0.y;
+    const sx2=s2.x-s0.x, sy2=s2.y-s0.y;
+    const dx1=d1.x-d0.x, dy1=d1.y-d0.y;
+    const dx2=d2.x-d0.x, dy2=d2.y-d0.y;
+    const det = sx1*sy2 - sy1*sx2;
+    if (Math.abs(det) < 1e-9) return null;
+    const a = (dx1*sy2 - sy1*dx2) / det;
+    const c = (sx1*dx2 - dx1*sx2) / det;
+    const b_ = (dy1*sy2 - sy1*dy2) / det;
+    const d_ = (sx1*dy2 - dy1*sx2) / det;
+    const e = d0.x - (a*s0.x + c*s0.y);
+    const f = d0.y - (b_*s0.x + d_*s0.y);
+    return {a, b:b_, c, d:d_, e, f};
+  }
+
+  function drawTriangle(ctx, sourceCanvas, s0,s1,s2, d0,d1,d2){
+    const t = affineFromTriangles(s0,s1,s2,d0,d1,d2);
+    if (!t) return;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(d0.x, d0.y);
+    ctx.lineTo(d1.x, d1.y);
+    ctx.lineTo(d2.x, d2.y);
+    ctx.closePath();
+    ctx.clip();
+    ctx.setTransform(t.a, t.b, t.c, t.d, t.e, t.f);
+    ctx.drawImage(sourceCanvas, 0, 0);
+    ctx.restore();
+  }
+
+  function dist(p,q){ return Math.hypot(p.x-q.x, p.y-q.y); }
+
+  function flattenQuad(sourceCanvas, srcCorners){
+    const [TL,TR,BR,BL] = srcCorners;
+    const wTop = dist(TL,TR), wBot = dist(BL,BR);
+    const hLeft = dist(TL,BL), hRight = dist(TR,BR);
+    let outW = Math.round(Math.max(wTop, wBot));
+    let outH = Math.round(Math.max(hLeft, hRight));
+    const maxDim = 1600;
+    if (Math.max(outW,outH) > maxDim){
+      const scale = maxDim / Math.max(outW, outH);
+      outW = Math.round(outW*scale); outH = Math.round(outH*scale);
+    }
+    outW = Math.max(outW, 200); outH = Math.max(outH, 200);
+
+    const rectCorners = [ {x:0,y:0}, {x:outW,y:0}, {x:outW,y:outH}, {x:0,y:outH} ];
+    const H = computeHomography(rectCorners, srcCorners);
+
+    const cols = Math.min(40, Math.max(10, Math.round(outW/40)));
+    const rows = Math.min(40, Math.max(10, Math.round(outH/40)));
+
+    const grid = [];
+    for (let j=0;j<=rows;j++){
+      const row = [];
+      const oy = outH*j/rows;
+      for (let i=0;i<=cols;i++){
+        row.push(applyH(H, outW*i/cols, oy));
+      }
+      grid.push(row);
+    }
+
+    const outCanvas = document.createElement('canvas');
+    outCanvas.width = outW; outCanvas.height = outH;
+    const ctx = outCanvas.getContext('2d');
+
+    for (let j=0;j<rows;j++){
+      for (let i=0;i<cols;i++){
+        const ox0 = outW*i/cols, ox1 = outW*(i+1)/cols;
+        const oy0 = outH*j/rows, oy1 = outH*(j+1)/rows;
+        const d0={x:ox0,y:oy0}, d1={x:ox1,y:oy0}, d2={x:ox1,y:oy1}, d3={x:ox0,y:oy1};
+        const s0=grid[j][i], s1=grid[j][i+1], s2=grid[j+1][i+1], s3=grid[j+1][i];
+        drawTriangle(ctx, sourceCanvas, s0,s1,s2, d0,d1,d2);
+        drawTriangle(ctx, sourceCanvas, s0,s2,s3, d0,d2,d3);
+      }
+    }
+    return outCanvas;
+  }
+
+  /* ============ status / progress ============ */
   function setStatus(text, active=false){
     statusText.textContent = text;
     statusRow.classList.toggle('active', active);
   }
-
   function setProgress(p){
     if(p == null){ progressTrack.classList.remove('show'); return; }
     progressTrack.classList.add('show');
     progressFill.style.width = Math.round(p*100) + '%';
   }
 
+  /* ============ OCR ============ */
   async function ensureWorker(lang){
     if(worker && workerLang === lang) return worker;
     if(worker){ await worker.terminate(); worker = null; }
@@ -367,15 +788,14 @@
   }
 
   scanBtn.addEventListener('click', async ()=>{
-    if(!hasImage) { fileInput.click(); return; }
+    if(!flattenedCanvas) return;
     scanBtn.disabled = true;
-    retakeBtn.disabled = true;
-    stage.classList.add('scanning');
+    previewWrap.classList.add('scanning');
     setStatus('Warming up…', true);
     setProgress(0);
     try{
       const w = await ensureWorker(currentLang);
-      const { data } = await w.recognize(preview.src);
+      const { data } = await w.recognize(flattenedCanvas);
       output.value = data.text.trim();
       charCount.textContent = output.value.length + ' characters';
       resultsCard.style.display = 'block';
@@ -388,8 +808,7 @@
       setProgress(null);
     }finally{
       scanBtn.disabled = false;
-      retakeBtn.disabled = false;
-      stage.classList.remove('scanning');
+      previewWrap.classList.remove('scanning');
     }
   });
 
@@ -426,6 +845,8 @@
     toast.classList.add('show');
     setTimeout(()=>toast.classList.remove('show'), 1600);
   }
+
+  renderBatchTray();
 
   if('serviceWorker' in navigator){
     window.addEventListener('load', ()=>{
