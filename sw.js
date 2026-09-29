@@ -1,4 +1,4 @@
-const CACHE = 'scanlight-v1';
+const CACHE = 'scanlight-v2';
 const SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (e) => {
@@ -13,19 +13,19 @@ self.addEventListener('activate', (e) => {
   self.clients.claim();
 });
 
+// Network-first: always try to fetch the latest version. Only fall back to the
+// cached copy if the network request fails (i.e. offline). This means updates
+// to index.html show up on the very next reload instead of being stuck behind
+// whatever was cached on the first visit.
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
+  if (!e.request.url.startsWith(self.location.origin)) return; // let CDN/OCR requests pass through untouched
+
   e.respondWith(
-    caches.match(e.request).then(cached => {
-      if (cached) return cached;
-      return fetch(e.request).then(res => {
-        // Only cache same-origin app-shell files; let CDN/OCR requests pass through untouched.
-        if (e.request.url.startsWith(self.location.origin)) {
-          const copy = res.clone();
-          caches.open(CACHE).then(cache => cache.put(e.request, copy));
-        }
-        return res;
-      }).catch(() => cached);
-    })
+    fetch(e.request).then(res => {
+      const copy = res.clone();
+      caches.open(CACHE).then(cache => cache.put(e.request, copy));
+      return res;
+    }).catch(() => caches.match(e.request))
   );
 });
