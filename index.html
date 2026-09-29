@@ -540,9 +540,16 @@
   });
 
   flattenBtn.addEventListener('click', ()=>{
-    const srcCorners = corners.map(c => ({x:c.x*rawCanvas.width, y:c.y*rawCanvas.height}));
-    flattenedCanvas = flattenQuad(rawCanvas, srcCorners);
-    enterPreviewMode();
+    flattenBtn.disabled = true;
+    setStatus('Flattening…', true);
+    // brief timeout lets the button/status update paint before the (synchronous,
+    // occasionally CPU-heavy) warp runs
+    setTimeout(()=>{
+      const srcCorners = corners.map(c => ({x:c.x*rawCanvas.width, y:c.y*rawCanvas.height}));
+      flattenedCanvas = flattenQuad(rawCanvas, srcCorners);
+      flattenBtn.disabled = false;
+      enterPreviewMode();
+    }, 30);
   });
 
   adjustCropBtn.addEventListener('click', ()=>{
@@ -694,14 +701,28 @@
     return {a, b:b_, c, d:d_, e, f};
   }
 
+  // Nudge a point outward from a centroid by a fraction of a pixel. Used only
+  // for the CLIP path (never the transform math) so neighboring triangles
+  // overlap by a hair instead of leaving a hairline gap — that gap is what
+  // shows up as faint criss-cross seam lines across the flattened image.
+  function expandFromCentroid(p, cx, cy, eps){
+    const dx = p.x - cx, dy = p.y - cy;
+    const len = Math.hypot(dx, dy) || 1;
+    return { x: p.x + (dx/len)*eps, y: p.y + (dy/len)*eps };
+  }
+
   function drawTriangle(ctx, sourceCanvas, s0,s1,s2, d0,d1,d2){
     const t = affineFromTriangles(s0,s1,s2,d0,d1,d2);
     if (!t) return;
+    const cx = (d0.x+d1.x+d2.x)/3, cy = (d0.y+d1.y+d2.y)/3;
+    const e0 = expandFromCentroid(d0, cx, cy, 0.75);
+    const e1 = expandFromCentroid(d1, cx, cy, 0.75);
+    const e2 = expandFromCentroid(d2, cx, cy, 0.75);
     ctx.save();
     ctx.beginPath();
-    ctx.moveTo(d0.x, d0.y);
-    ctx.lineTo(d1.x, d1.y);
-    ctx.lineTo(d2.x, d2.y);
+    ctx.moveTo(e0.x, e0.y);
+    ctx.lineTo(e1.x, e1.y);
+    ctx.lineTo(e2.x, e2.y);
     ctx.closePath();
     ctx.clip();
     ctx.setTransform(t.a, t.b, t.c, t.d, t.e, t.f);
@@ -727,8 +748,8 @@
     const rectCorners = [ {x:0,y:0}, {x:outW,y:0}, {x:outW,y:outH}, {x:0,y:outH} ];
     const H = computeHomography(rectCorners, srcCorners);
 
-    const cols = Math.min(40, Math.max(10, Math.round(outW/40)));
-    const rows = Math.min(40, Math.max(10, Math.round(outH/40)));
+    const cols = Math.min(70, Math.max(14, Math.round(outW/18)));
+    const rows = Math.min(70, Math.max(14, Math.round(outH/18)));
 
     const grid = [];
     for (let j=0;j<=rows;j++){
