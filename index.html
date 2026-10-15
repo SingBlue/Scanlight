@@ -320,6 +320,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2"/><path d="M4 16v2a2 2 0 0 0 2 2h2"/><path d="M20 8V6a2 2 0 0 0-2-2h-2"/><path d="M20 16v2a2 2 0 0 1-2 2h-2"/><circle cx="12" cy="12" r="3.2"/></svg>
         <b>Tap to scan a page</b>
         <span>Camera opens automatically</span>
+        <button class="btn-ghost" id="importBtn" type="button" style="margin-top:14px;">Import saved scans (JPG / PNG / PDF)</button>
       </div>
     </div>
 
@@ -343,6 +344,7 @@
       <div class="secondary-row">
         <button class="btn-ghost small" id="useFullBtn">Use full photo</button>
         <button class="btn-ghost small" id="cropRetakeBtn">Retake</button>
+        <button class="btn-ghost small" id="skipBtn" style="display:none;">Skip page</button>
       </div>
     </div>
 
@@ -381,6 +383,7 @@
     </div>
 
     <input type="file" id="fileInput" accept="image/*" capture="environment">
+    <input type="file" id="importInput" accept="image/*,application/pdf,.pdf" multiple style="display:none;">
 
     <div class="status" id="status" style="margin-top:12px;">
       <span id="statusText"></span>
@@ -421,6 +424,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/4.0.0/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
   /* ============ elements ============ */
   const emptyState = document.getElementById('emptyState');
@@ -525,6 +529,7 @@
   fileInput.addEventListener('change', (e)=>{
     const file = e.target.files[0];
     if(!file) return;
+    importQueue = []; importTotal = 0; skipBtn.style.display = 'none';
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = ()=>{
@@ -541,6 +546,98 @@
     };
     img.src = url;
   });
+
+  /* ============ import saved scans ============ */
+  const importBtn = document.getElementById('importBtn');
+  const importInput = document.getElementById('importInput');
+  const skipBtn = document.getElementById('skipBtn');
+  let importQueue = [];   // canvases waiting to be edited
+  let importTotal = 0;
+
+  function fitCanvas(src, w, h){
+    const maxSide = 2200;
+    if (Math.max(w,h) > maxSide){
+      const k = maxSide/Math.max(w,h);
+      w = Math.round(w*k); h = Math.round(h*k);
+    }
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    c.getContext('2d').drawImage(src, 0, 0, w, h);
+    return c;
+  }
+
+  function loadImageFile(file){
+    return new Promise((resolve, reject)=>{
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = ()=>{ const c = fitCanvas(img, img.naturalWidth, img.naturalHeight); URL.revokeObjectURL(url); resolve(c); };
+      img.onerror = ()=>{ URL.revokeObjectURL(url); reject(new Error('Could not read ' + file.name)); };
+      img.src = url;
+    });
+  }
+
+  async function loadPdfFile(file){
+    if(!window.pdfjsLib) throw new Error('PDF reader not loaded (check internet)');
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const data = new Uint8Array(await file.arrayBuffer());
+    const pdf = await pdfjsLib.getDocument({data}).promise;
+    const out = [];
+    for(let i=1;i<=pdf.numPages;i++){
+      setStatus('Reading PDF page ' + i + ' of ' + pdf.numPages + '…');
+      const page = await pdf.getPage(i);
+      const base = page.getViewport({scale:1});
+      const scale = Math.min(4, 2200/Math.max(base.width, base.height));
+      const vp = page.getViewport({scale});
+      const c = document.createElement('canvas');
+      c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0,0,c.width,c.height);
+      await page.render({canvasContext:ctx, viewport:vp}).promise;
+      out.push(c);
+    }
+    return out;
+  }
+
+  function nextImportPage(){
+    if(importQueue.length === 0){
+      importTotal = 0;
+      skipBtn.style.display = 'none';
+      showState('empty');
+      return;
+    }
+    const c = importQueue.shift();
+    rawCanvas = c;
+    // imported scans are usually already cropped: start with the full page selected
+    corners = [{x:0.01,y:0.01},{x:0.99,y:0.01},{x:0.99,y:0.99},{x:0.01,y:0.99}];
+    enterCropMode(c.toDataURL('image/jpeg', 0.92));
+    const n = importTotal - importQueue.length;
+    setStatus('Imported page ' + n + ' of ' + importTotal);
+    skipBtn.style.display = importTotal > 0 ? '' : 'none';
+  }
+
+  importBtn.addEventListener('click', (e)=>{ e.stopPropagation(); importInput.click(); });
+  importInput.addEventListener('change', async (e)=>{
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if(!files.length) return;
+    const pages = [];
+    try{
+      for(const f of files){
+        const isPdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
+        if(isPdf) pages.push(...await loadPdfFile(f));
+        else pages.push(await loadImageFile(f));
+      }
+    }catch(err){
+      setStatus('');
+      showToast(err.message || 'Import failed');
+      return;
+    }
+    if(!pages.length){ showToast('Nothing to import'); return; }
+    importQueue = pages;
+    importTotal = pages.length;
+    nextImportPage();
+  });
+  skipBtn.addEventListener('click', nextImportPage);
 
   /* ============ crop mode ============ */
   function enterCropMode(displayUrl){
@@ -797,7 +894,8 @@
     batchPages.push(flattenedCanvas);
     renderBatchTray();
     showToast('Page ' + batchPages.length + ' added');
-    showState('empty');
+    if(importQueue.length > 0) nextImportPage();
+    else { importTotal = 0; skipBtn.style.display = 'none'; showState('empty'); }
   });
 
   function renderBatchTray(){
