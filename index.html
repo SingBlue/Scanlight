@@ -335,6 +335,7 @@
   .atile{position:relative; border:2px solid var(--line); border-radius:12px; overflow:hidden; background:#fff; cursor:pointer;}
   .atile canvas{display:block; width:100%; height:auto;}
   .atile span{position:absolute; right:4px; bottom:2px; font-size:0.68rem; color:#555;}
+  .atile.guessed::before{content:'guess'; position:absolute; left:4px; top:2px; font-size:0.62rem; color:#8A6423;}
   .atile.sel{border-color:var(--amber); box-shadow:0 0 0 3px var(--amber) inset;}
 </style>
 </head>
@@ -1481,12 +1482,11 @@
     return {glyphs, medH, w, h};
   }
 
-  function buildLines(pg){
-    const gl = pg.glyphs, medH = pg.medH;
-    // find text lines as peaks in the histogram of letter-centre heights
-    let maxY = 0; gl.forEach(g=>{ if(g.cy>maxY) maxY = g.cy; });
+  function detectLines(gl, ids, medH){
+    // text lines = peaks in the histogram of letter-centre heights
+    let maxY = 0; ids.forEach(i=>{ if(gl[i].cy>maxY) maxY = gl[i].cy; });
     const hist = new Float32Array(Math.ceil(maxY)+8);
-    gl.forEach(g=>{ hist[Math.round(g.cy)]++; });
+    ids.forEach(i=>{ hist[Math.round(gl[i].cy)]++; });
     const sm = new Float32Array(hist.length), r = Math.max(2, Math.round(0.12*medH));
     for(let y=0;y<hist.length;y++){
       let s = 0, c = 0;
@@ -1503,14 +1503,41 @@
     }
     if(!peaks.length) peaks = [Math.round(maxY/2)];
     const groups = peaks.map(()=>[]);
-    gl.forEach((g,i)=>{
+    ids.forEach(i=>{
       let bi = 0, bd = 1e9;
-      peaks.forEach((p,k)=>{ const d = Math.abs(g.cy-p); if(d<bd){ bd = d; bi = k; } });
+      peaks.forEach((p,k)=>{ const d = Math.abs(gl[i].cy-p); if(d<bd){ bd = d; bi = k; } });
       groups[bi].push(i);
     });
-    const mid = ids => { const v = ids.map(i=>gl[i].cy).sort((a,b)=>a-b); return v[v.length>>1]; };
-    let info = groups.filter(ids=>ids.length).map(ids=>({ids, mid:mid(ids)}));
+    const mid = a => { const v = a.map(i=>gl[i].cy).sort((x,y)=>x-y); return v[v.length>>1]; };
+    const info = groups.filter(g=>g.length).map(g=>({ids:g, mid:mid(g)}));
     info.sort((a,b)=>a.mid-b.mid);
+    return info;
+  }
+  // two-column pages: find the empty vertical gutter in the middle of the page
+  function findGutter(pg){
+    const W = pg.w, cover = new Int32Array(W+1);
+    pg.glyphs.forEach(g=>{ for(let x=Math.max(0,g.x0); x<=Math.min(W-1,g.x0+g.w-1); x++) cover[x]++; });
+    const lo = Math.round(W*0.3), hi = Math.round(W*0.7);
+    let best = null, run = -1;
+    for(let x=lo;x<=hi+1;x++){
+      const empty = x<=hi && cover[x] <= 1;
+      if(empty && run < 0) run = x;
+      if(!empty && run >= 0){
+        if(!best || x-run > best.w) best = {x0:run, w:x-run};
+        run = -1;
+      }
+    }
+    if(best && best.w >= 1.0*pg.medH) return best.x0 + best.w/2;
+    return null;
+  }
+  function buildLines(pg){
+    const gl = pg.glyphs, medH = pg.medH;
+    const gx = findGutter(pg);
+    pg.gutter = gx;
+    const cols = gx === null ? [gl.map((g,i)=>i)]
+      : [gl.map((g,i)=>i).filter(i=>gl[i].cx > gx), gl.map((g,i)=>i).filter(i=>gl[i].cx <= gx)];   // right column is read first
+    let info = [];
+    cols.forEach(ids=>{ if(ids.length) info = info.concat(detectLines(gl, ids, medH)); });
     info.forEach((l,li)=>{
       l.ids.sort((a,b)=>gl[b].cx-gl[a].cx);       // right to left
       l.ids.forEach(i=>{ gl[i].line = li; });
@@ -1936,26 +1963,28 @@
     ctx.drawImage(m, (box-w)/2, (box-h)/2, w, h);
   }
   function renderAlpha(){
-    while(sess.idx < sess.need.length && (sess.have.has(sess.need[sess.idx]) || sess.autoLetters.has(sess.need[sess.idx]))) sess.idx++;
+    while(sess.idx < sess.need.length && sess.have.has(sess.need[sess.idx])) sess.idx++;
     if(sess.idx >= sess.need.length){ startConfirm(); return; }
-    if(!unnamed().length){ finishSession(); return; }
     $('classicBox').style.display = 'none'; $('alphaBox').style.display = '';
     const ch = sess.need[sess.idx];
     $('teachTitle').textContent = 'Find each letter';
-    const got = LETTERS.filter(l=>sess.have.has(l) || sess.autoLetters.has(l)).length;
+    const got = LETTERS.filter(l=>sess.have.has(l)).length;
     $('teachSub').textContent = got + ' of 27 letters found · biggest groups shown first';
     $('alphaBig').textContent = ch;
     const strip = $('alphaStrip'); strip.innerHTML = '';
     LETTERS.forEach(l=>{
       const c = document.createElement('span');
-      c.className = 'achip' + ((sess.have.has(l)||sess.autoLetters.has(l)) ? ' done' : '') + (l === ch ? ' cur' : '');
+      c.className = 'achip' + (sess.have.has(l) ? ' done' : '') + (l === ch ? ' cur' : '');
       c.textContent = l; strip.appendChild(c);
     });
     const pool = unnamed();
+    // shapes it already guessed to be this letter come first, pre-ticked: one tap on Next confirms them
+    const guessed = sess.items.filter(it=>it.auto && it.label === ch);
+    if(sess.preFor !== sess.idx){ sess.preFor = sess.idx; guessed.forEach(it=>sess.sel.add(it)); }
     const grid = $('alphaGrid'); grid.innerHTML = '';
-    pool.slice(0, sess.shown).forEach(it=>{
+    guessed.concat(pool.slice(0, sess.shown)).forEach(it=>{
       const d = document.createElement('div');
-      d.className = 'atile' + (sess.sel.has(it) ? ' sel' : '');
+      d.className = 'atile' + (sess.sel.has(it) ? ' sel' : '') + (it.auto ? ' guessed' : '');
       const cv = document.createElement('canvas');
       drawMaskTile(cv, itemGlyph(it));
       const n = document.createElement('span'); n.textContent = '×' + it.ids.length;
@@ -1976,8 +2005,14 @@
   }
   function alphaNext(){
     const ch = sess.need[sess.idx];
+    // guessed shapes the user un-ticked go back to "unnamed"
+    sess.items.filter(it=>it.auto && it.label === ch && !sess.sel.has(it)).forEach(it=>{
+      it.auto = false; it.label = undefined;
+      it.ids.forEach(i=>{ page.glyphs[i].locked = false; page.glyphs[i].label = null; });
+    });
     if(sess.sel.size){
       sess.sel.forEach(it=>{
+        it.auto = false;
         it.label = ch;
         it.ids.forEach(i=>{ const g = page.glyphs[i]; g.label = ch; g.locked = true; });
         addSample(ch, {feat:it.feat, rh:it.rh, rw:it.rw, ry:it.ry});
@@ -1989,12 +2024,10 @@
       const smp = samples();
       unnamed().forEach(it=>{
         recognizeOne(it, smp);
-        if(!it.uncertain && it.d < 0.45 && it.label !== null){
+        if(!it.uncertain && it.d < 0.38 && it.label !== null){
           const lab = it.label;
           it.auto = true;
           it.ids.forEach(i=>{ page.glyphs[i].label = lab; page.glyphs[i].locked = true; });
-          sess.autoN += it.ids.length;
-          if(it.ids.length >= 3) sess.autoLetters.add(lab);
         } else it.label = undefined;
       });
     }
@@ -2077,7 +2110,7 @@
     const src = document.createElement('canvas');
     src.width = flattenedCanvas.width; src.height = flattenedCanvas.height;
     src.getContext('2d').drawImage(flattenedCanvas, 0, 0);
-    page = {src, glyphs:seg.glyphs, medH:seg.medH};
+    page = {src, glyphs:seg.glyphs, medH:seg.medH, w:seg.w, h:seg.h};
     buildLines(page);
     return true;
   }
