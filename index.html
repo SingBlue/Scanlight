@@ -114,8 +114,14 @@
     touch-action:none;
     user-select:none;
   }
-  .crop-img{width:100%; display:block; -webkit-user-drag:none;}
-  .crop-overlay{position:absolute; inset:0; width:100%; height:100%; display:block;}
+  .crop-wrap, .crop-wrap *{
+    -webkit-touch-callout:none;
+    -webkit-user-select:none;
+    user-select:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .crop-img{width:100%; display:block; -webkit-user-drag:none; pointer-events:none;}
+  .crop-overlay{position:absolute; inset:0; width:100%; height:100%; display:block; pointer-events:none;}
   #cropMask{fill:rgba(6,7,10,0.6);}
   #cropPoly{fill:none; stroke:var(--amber); stroke-width:2; vector-effect:non-scaling-stroke;}
   .handle{
@@ -295,6 +301,27 @@
     white-space:nowrap;
   }
   .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+  /* ---------- taught-font screens ---------- */
+  #fontSelect{flex:1; min-width:0; background:var(--surface-2); color:var(--text); border:1px solid var(--line); border-radius:12px; padding:10px; font:inherit; font-size:0.85rem;}
+  .btn-primary.small{padding:10px 18px; font-size:0.9rem;}
+  .teach-overlay{position:fixed; inset:0; z-index:60; background:var(--bg); overflow-y:auto; padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0);}
+  .teach-box{max-width:560px; margin:0 auto; padding:16px 16px 28px;}
+  .teach-top{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .teach-top b{font-family:'Fraunces',serif; font-size:1.3rem;}
+  .teach-sub{color:var(--text-dim); font-size:0.82rem; margin:4px 0 12px;}
+  .teach-glyph-row{display:flex; align-items:center; gap:14px; min-height:60px;}
+  .teach-glyph-row canvas{background:#fff; border-radius:10px; max-width:150px; max-height:130px;}
+  #teachCount{color:var(--text-dim); font-size:0.9rem;}
+  .teach-ctx{width:100%; border-radius:10px; margin:12px 0 6px; background:#fff; display:block;}
+  .teach-q{font-weight:600; margin:10px 0;}
+  .teach-keys{display:grid; grid-template-columns:repeat(7,1fr); gap:7px; direction:rtl; margin-bottom:10px;}
+  .tkey{font:inherit; font-size:1.5rem; padding:8px 0; border-radius:12px; border:1px solid var(--line); background:var(--surface-2); color:var(--text); cursor:pointer; min-height:48px;}
+  .tkey:active{background:var(--amber); color:#1C1305;}
+  .tkey.guess{border-color:var(--amber); box-shadow:0 0 0 2px var(--amber) inset;}
+  .tkey.mark{font-size:1.25rem;}
+  .teach-actions{display:flex; gap:8px; margin-top:6px;}
+  .teach-actions button:disabled{opacity:.4;}
 </style>
 </head>
 <body>
@@ -309,6 +336,14 @@
       <div class="lang-chip active" data-lang="heb+eng">עברית + English</div>
       <div class="lang-chip" data-lang="eng">English</div>
       <div class="lang-chip" data-lang="heb">עברית</div>
+      <div class="lang-chip" data-lang="taught">✎ Taught font</div>
+    <div id="fontRow" style="display:none; gap:8px; margin-top:10px; align-items:center;">
+      <select id="fontSelect" aria-label="Taught font"></select>
+      <button class="btn-ghost small" id="fontNewBtn" style="flex:none;">New</button>
+      <button class="btn-ghost small" id="fontExportBtn" style="flex:none;">Export</button>
+      <button class="btn-ghost small" id="fontImportBtn" style="flex:none;">Import</button>
+      <input type="file" id="fontFileInput" accept=".json,application/json">
+    </div>
     </div>
   </div>
 
@@ -378,6 +413,7 @@
         <button class="btn-ghost small" id="adjustCropBtn">Adjust crop</button>
       </div>
       <div class="secondary-row">
+        <button class="btn-ghost small" id="teachBtn">✎ Teach letters</button>
         <button class="btn-ghost small" id="retakeBtn">Retake</button>
       </div>
     </div>
@@ -411,6 +447,7 @@
     </div>
     <textarea id="output" dir="auto" placeholder="Recognized text will appear here — you can edit it before copying."></textarea>
     <div class="result-actions">
+      <button class="btn-ghost" id="reviewBtn" style="display:none;">Check letters</button>
       <button class="btn-ghost" id="copyBtn">Copy</button>
       <button class="btn-ghost" id="downloadBtn">Download .txt</button>
       <button class="btn-ghost" id="clearBtn">Clear</button>
@@ -418,6 +455,25 @@
   </div>
 
   <footer>Text recognition runs entirely on your phone using an offline OCR engine — nothing is uploaded anywhere.</footer>
+</div>
+
+<div class="teach-overlay" id="teachOverlay" style="display:none;">
+  <div class="teach-box">
+    <div class="teach-top"><b id="teachTitle">Teach letters</b><button class="btn-primary small" id="teachDone" style="flex:none;">Done</button></div>
+    <div class="teach-sub" id="teachSub"></div>
+    <div class="teach-glyph-row"><canvas id="teachGlyph"></canvas><div id="teachCount"></div></div>
+    <canvas id="teachCtx" class="teach-ctx"></canvas>
+    <div class="teach-q" id="teachQ"></div>
+    <button class="btn-primary" id="teachOk" style="display:none; width:100%; margin-bottom:10px;">✓ Right</button>
+    <div class="teach-keys" id="teachKeys"></div>
+    <div class="teach-keys marks" id="teachMarks"></div>
+    <div class="teach-actions">
+      <button class="btn-ghost small" id="teachBack">Back</button>
+      <button class="btn-ghost small" id="teachIgnore">Not a letter</button>
+      <button class="btn-ghost small" id="teachOther">Other…</button>
+      <button class="btn-ghost small" id="teachSkip">Skip</button>
+    </div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -665,7 +721,12 @@
     cropMask.setAttribute('d', `M0,0 H100 V100 H0 Z M ${pts.split(' ').join(' L ')} Z`);
   }
 
+  // stop Android's long-press menu (download/share image) from popping up while dragging corners
+  cropWrap.addEventListener('contextmenu', (e)=> e.preventDefault());
+  cropWrap.addEventListener('dragstart', (e)=> e.preventDefault());
+
   handles.forEach(h=>{
+    h.addEventListener('contextmenu', (e)=> e.preventDefault());
     const idx = parseInt(h.dataset.i, 10);
     h.addEventListener('pointerdown', (e)=>{
       e.preventDefault();
@@ -1132,6 +1193,8 @@
 
   scanBtn.addEventListener('click', async ()=>{
     if(!flattenedCanvas) return;
+    if(currentLang === 'taught'){ window.taughtScan(); return; }
+    document.getElementById('reviewBtn').style.display = 'none';
     scanBtn.disabled = true;
     previewWrap.classList.add('scanning');
     setStatus('Warming up…', true);
@@ -1196,6 +1259,751 @@
       navigator.serviceWorker.register('sw.js').catch(()=>{});
     });
   }
+</script>
+<script>
+/* ============ Taught-letter reader (teach it a font, then read pages with it) ============ */
+(function(){
+  const N = 24;                       // glyph bitmap size (N x N)
+  const FONT_KEY = 'scanlight.fonts.v1';
+  const CUR_KEY  = 'scanlight.fontCur';
+  const LETTERS = ['א','ב','ג','ד','ה','ו','ז','ח','ט','י','כ','ך','ל','מ','ם','נ','ן','ס','ע','פ','ף','צ','ץ','ק','ר','ש','ת'];
+  const MARKS = ["'", '"', '.', ',', ':', '-', '(', ')', '*', '?', '!', '/'];
+  const W_PIX = 10, W_SZ = 0.5, W_Y = 0.5;
+  let CLUSTER_THR = 0.42;           // how alike two shapes must be to share a group
+  const ABS_THR = 0.62;               // best match farther than this = "not sure"
+  const MARGIN_THR = 0.10;            // best and runner-up (other letter) closer than this = "not sure"
+  const MAX_PER_LABEL = 60;
+  const SPLIT_LAMBDA = 0.10;         // small cost per extra piece when cutting touching letters
+
+  const $ = id => document.getElementById(id);
+
+  /* ---------- font storage ---------- */
+  let fonts = {}, curFont = '', decoded = null;
+  function loadFonts(){
+    try{
+      fonts = JSON.parse(localStorage.getItem(FONT_KEY) || '{}') || {};
+      curFont = localStorage.getItem(CUR_KEY) || '';
+    }catch(e){ fonts = {}; curFont = ''; }
+    if(!fonts[curFont]) curFont = Object.keys(fonts)[0] || '';
+  }
+  function saveFonts(){
+    try{
+      localStorage.setItem(FONT_KEY, JSON.stringify(fonts));
+      localStorage.setItem(CUR_KEY, curFont);
+    }catch(e){ showToast('Could not save — storage full? Use Export to keep a copy.'); }
+  }
+  function encodeVec(v){
+    const u = new Uint8Array(v.length);
+    for(let i=0;i<v.length;i++) u[i] = Math.round(Math.min(1, Math.max(0, v[i]))*255);
+    let s = ''; for(let i=0;i<u.length;i+=4096) s += String.fromCharCode.apply(null, u.subarray(i, i+4096));
+    return btoa(s);
+  }
+  function decodeVec(s){
+    const b = atob(s), v = new Float32Array(b.length);
+    for(let i=0;i<b.length;i++) v[i] = b.charCodeAt(i)/255;
+    return v;
+  }
+  function samples(){
+    if(!curFont || !fonts[curFont]) return [];
+    if(!decoded || decoded.name !== curFont || decoded.n !== fonts[curFont].samples.length){
+      decoded = {
+        name: curFont, n: fonts[curFont].samples.length,
+        arr: fonts[curFont].samples.map(s => ({c:s.c, feat:decodeVec(s.f), rh:s.h, rw:s.w, ry:s.y}))
+      };
+    }
+    return decoded.arr;
+  }
+  function addSample(label, g){
+    const f = fonts[curFont]; if(!f) return;
+    f.samples.push({c:label, f:encodeVec(g.feat), h:+g.rh.toFixed(3), w:+g.rw.toFixed(3), y:+g.ry.toFixed(3)});
+    const same = f.samples.map((s,i)=>[s,i]).filter(p=>p[0].c === label);
+    if(same.length > MAX_PER_LABEL) f.samples.splice(same[1][1], 1);   // drop the oldest after the first
+    decoded = null;
+  }
+
+  /* ---------- segmentation: page -> letter shapes ---------- */
+  function segment(canvas){
+    const w = canvas.width, h = canvas.height;
+    const px = canvas.getContext('2d').getImageData(0,0,w,h).data;
+    const gray = new Float32Array(w*h);
+    for(let i=0,j=0;i<gray.length;i++,j+=4) gray[i] = 0.299*px[j] + 0.587*px[j+1] + 0.114*px[j+2];
+    // adaptive threshold (integral image)
+    const W = w+1, integ = new Float64Array(W*(h+1));
+    for(let y=0;y<h;y++){
+      let row = 0;
+      for(let x=0;x<w;x++){ row += gray[y*w+x]; integ[(y+1)*W+x+1] = integ[y*W+x+1] + row; }
+    }
+    const half = (Math.max(31, Math.round(Math.min(w,h)/12))|1) >> 1, t = 0.12;
+    const bin = new Uint8Array(w*h);
+    for(let y=0;y<h;y++){
+      const y0 = Math.max(0,y-half), y1 = Math.min(h-1,y+half);
+      for(let x=0;x<w;x++){
+        const x0 = Math.max(0,x-half), x1 = Math.min(w-1,x+half);
+        const cnt = (x1-x0+1)*(y1-y0+1);
+        const sum = integ[(y1+1)*W+x1+1] - integ[y0*W+x1+1] - integ[(y1+1)*W+x0] + integ[y0*W+x0];
+        if(gray[y*w+x]*cnt < sum*(1-t)) bin[y*w+x] = 1;
+      }
+    }
+    // connected components (8-connectivity, union-find)
+    const lab = new Int32Array(w*h);
+    const parent = new Int32Array((w*h>>1) + 2);
+    let next = 1;
+    const find = x => { while(parent[x] !== x){ parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
+    for(let y=0;y<h;y++){
+      for(let x=0;x<w;x++){
+        const i = y*w+x;
+        if(!bin[i]) continue;
+        let m = 0;
+        const a = x>0 ? lab[i-1] : 0;
+        const b = y>0 && x>0 ? lab[i-w-1] : 0;
+        const c = y>0 ? lab[i-w] : 0;
+        const d = y>0 && x<w-1 ? lab[i-w+1] : 0;
+        if(a) m = a;
+        if(b && (!m || b<m)) m = b;
+        if(c && (!m || c<m)) m = c;
+        if(d && (!m || d<m)) m = d;
+        if(!m){ parent[next] = next; lab[i] = next++; }
+        else{
+          lab[i] = m;
+          for(const v of [a,b,c,d]) if(v){ const r1 = find(v), r2 = find(m); if(r1 !== r2){ if(r1<r2) parent[r2]=r1; else parent[r1]=r2; } }
+        }
+      }
+    }
+    const idOf = new Int32Array(next).fill(-1);
+    const comps = [];
+    for(let y=0;y<h;y++){
+      for(let x=0;x<w;x++){
+        const l = lab[y*w+x];
+        if(!l) continue;
+        const r = find(l);
+        let id = idOf[r];
+        if(id < 0){ id = comps.length; idOf[r] = id; comps.push({x0:x,x1:x,y0:y,y1:y,area:0}); }
+        const c = comps[id];
+        if(x<c.x0) c.x0=x; if(x>c.x1) c.x1=x; if(y<c.y0) c.y0=y; if(y>c.y1) c.y1=y;
+        c.area++;
+        lab[y*w+x] = id+1;      // overwrite with compact id
+      }
+    }
+    // typical letter height
+    const hs = comps.filter(c=>c.area>=20).map(c=>c.y1-c.y0+1).sort((a,b)=>a-b);
+    if(hs.length < 20) return null;
+    const medH = hs[hs.length>>1];
+    const keep = comps.map(c=>{
+      const ch = c.y1-c.y0+1, cw = c.x1-c.x0+1;
+      return c.area >= Math.max(3, 0.015*medH*medH) && ch <= 4*medH && cw <= 6*medH;
+    });
+    // join pieces of one letter (e.g. the separate leg of ה) when one sits right under/over the other
+    const grp = comps.map((c,i)=>i);
+    const gfind = x => { while(grp[x] !== x){ grp[x] = grp[grp[x]]; x = grp[x]; } return x; };
+    const kept = [];
+    comps.forEach((c,i)=>{ if(keep[i]) kept.push(i); });
+    kept.sort((p,q)=>comps[p].x0-comps[q].x0);
+    for(let ai=0;ai<kept.length;ai++){
+      const A = comps[kept[ai]], aw = A.x1-A.x0+1, ah = A.y1-A.y0+1;
+      for(let bi=ai+1;bi<kept.length;bi++){
+        const B = comps[kept[bi]];
+        if(B.x0 > A.x1) break;
+        const bw = B.x1-B.x0+1, bh = B.y1-B.y0+1;
+        const smallIsA = A.area < B.area;
+        const S = smallIsA ? A : B, sw = smallIsA ? aw : bw, sh = smallIsA ? ah : bh;
+        if(sh < 0.4*medH || S.area < 0.05*medH*medH) continue;
+        const ov = Math.min(A.x1,B.x1) - Math.max(A.x0,B.x0) + 1;
+        if(ov < 0.8*sw) continue;
+        const gap = Math.max(A.y0,B.y0) - Math.min(A.y1,B.y1) - 1;
+        if(gap > 0.3*medH) continue;
+        const uh = Math.max(A.y1,B.y1) - Math.min(A.y0,B.y0) + 1;
+        const uw = Math.max(A.x1,B.x1) - Math.min(A.x0,B.x0) + 1;
+        if(uh > 1.4*medH || uw > 1.3*medH) continue;
+        const ra = gfind(kept[ai]), rb = gfind(kept[bi]);
+        if(ra !== rb) grp[rb] = ra;
+      }
+    }
+    const boxes = new Map();
+    comps.forEach((c,i)=>{
+      if(!keep[i]) return;
+      const r = gfind(i);
+      const bx = boxes.get(r);
+      if(!bx) boxes.set(r, {x0:c.x0,x1:c.x1,y0:c.y0,y1:c.y1,area:c.area});
+      else{ bx.x0=Math.min(bx.x0,c.x0); bx.x1=Math.max(bx.x1,c.x1); bx.y0=Math.min(bx.y0,c.y0); bx.y1=Math.max(bx.y1,c.y1); bx.area+=c.area; }
+    });
+    const glyphs = [], gid = new Int32Array(comps.length).fill(-1), gOfRoot = new Map();
+    boxes.forEach((c,r)=>{
+      const bw = c.x1-c.x0+1, bh = c.y1-c.y0+1;
+      gOfRoot.set(r, glyphs.length);
+      glyphs.push({x0:c.x0, y0:c.y0, w:bw, h:bh, area:c.area, mask:new Uint8Array(bw*bh),
+                   cx:c.x0+bw/2, cy:c.y0+bh/2, single:(bw <= 1.15*medH || bh > 1.6*medH), line:-1, label:null, locked:false, d:0, alt:'', uncertain:false});
+    });
+    comps.forEach((c,i)=>{ if(keep[i]) gid[i] = gOfRoot.get(gfind(i)); });
+    for(let y=0;y<h;y++){
+      for(let x=0;x<w;x++){
+        const l = lab[y*w+x];
+        if(!l) continue;
+        const k = gid[l-1];
+        if(k >= 0){ const g = glyphs[k]; g.mask[(y-g.y0)*g.w + (x-g.x0)] = 1; }
+      }
+    }
+    return {glyphs, medH, w, h};
+  }
+
+  function buildLines(pg){
+    const gl = pg.glyphs, medH = pg.medH;
+    // find text lines as peaks in the histogram of letter-centre heights
+    let maxY = 0; gl.forEach(g=>{ if(g.cy>maxY) maxY = g.cy; });
+    const hist = new Float32Array(Math.ceil(maxY)+8);
+    gl.forEach(g=>{ hist[Math.round(g.cy)]++; });
+    const sm = new Float32Array(hist.length), r = Math.max(2, Math.round(0.12*medH));
+    for(let y=0;y<hist.length;y++){
+      let s = 0, c = 0;
+      for(let k=-r;k<=r;k++){ const yy = y+k; if(yy>=0 && yy<hist.length){ s += hist[yy]; c++; } }
+      sm[y] = s/c;
+    }
+    const win = Math.round(0.75*medH);
+    let peaks = [];
+    for(let y=0;y<sm.length;y++){
+      if(sm[y] < 0.8) continue;
+      let isMax = true;
+      for(let k=-win;k<=win && isMax;k++){ const yy = y+k; if(yy>=0 && yy<sm.length && (sm[yy] > sm[y] || (sm[yy] === sm[y] && k<0))) isMax = false; }
+      if(isMax) peaks.push(y);
+    }
+    if(!peaks.length) peaks = [Math.round(maxY/2)];
+    const groups = peaks.map(()=>[]);
+    gl.forEach((g,i)=>{
+      let bi = 0, bd = 1e9;
+      peaks.forEach((p,k)=>{ const d = Math.abs(g.cy-p); if(d<bd){ bd = d; bi = k; } });
+      groups[bi].push(i);
+    });
+    const mid = ids => { const v = ids.map(i=>gl[i].cy).sort((a,b)=>a-b); return v[v.length>>1]; };
+    let info = groups.filter(ids=>ids.length).map(ids=>({ids, mid:mid(ids)}));
+    info.sort((a,b)=>a.mid-b.mid);
+    info.forEach((l,li)=>{
+      l.ids.sort((a,b)=>gl[b].cx-gl[a].cx);       // right to left
+      l.ids.forEach(i=>{ gl[i].line = li; });
+    });
+    pg.lines = info;
+    gl.forEach(g=>{
+      g.rh = g.h/medH; g.rw = g.w/medH;
+      g.ry = (g.cy - info[g.line].mid)/medH;
+      g.feat = featOf(g);
+    });
+    // word gap threshold: 2-means on the gaps between neighbouring shapes
+    const gaps = [];
+    info.forEach(l=>{
+      for(let k=1;k<l.ids.length;k++){
+        const p = gl[l.ids[k-1]], c = gl[l.ids[k]];
+        gaps.push(Math.max(0, p.x0 - (c.x0+c.w)));
+      }
+    });
+    let thr = 0.4*medH;
+    if(gaps.length > 30){
+      const s = gaps.slice().sort((a,b)=>a-b);
+      let lo = s[Math.floor(s.length*0.25)], hi = s[Math.floor(s.length*0.95)];
+      for(let it=0;it<12;it++){
+        let a=0,an=0,b=0,bn=0;
+        for(const g of s){ if(Math.abs(g-lo) <= Math.abs(g-hi)){ a+=g; an++; } else { b+=g; bn++; } }
+        if(an) lo = a/an; if(bn) hi = b/bn;
+      }
+      thr = (lo+hi)/2;
+    }
+    pg.spaceThr = Math.min(0.7*medH, Math.max(0.22*medH, thr));
+  }
+
+  /* ---------- features and matching ---------- */
+  function featOf(g){
+    const bw = g.w, bh = g.h, S = N-2, m = g.mask;
+    const sc = S/Math.max(bw,bh);
+    const tw = Math.max(1, Math.round(bw*sc)), th = Math.max(1, Math.round(bh*sc));
+    const ox = Math.floor((N-tw)/2), oy = Math.floor((N-th)/2);
+    const f = new Float32Array(N*N);
+    for(let ty=0;ty<th;ty++){
+      const sy0 = Math.floor(ty*bh/th), sy1 = Math.max(sy0+1, Math.floor((ty+1)*bh/th));
+      for(let tx=0;tx<tw;tx++){
+        const sx0 = Math.floor(tx*bw/tw), sx1 = Math.max(sx0+1, Math.floor((tx+1)*bw/tw));
+        let s = 0, c = 0;
+        for(let sy=sy0;sy<sy1;sy++) for(let sx=sx0;sx<sx1;sx++){ s += m[sy*bw+sx]; c++; }
+        f[(oy+ty)*N + ox+tx] = s/c;
+      }
+    }
+    // light blur so slightly shifted/thicker strokes still match
+    const o = new Float32Array(N*N);
+    for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+      let s = 0, wsum = 0;
+      for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
+        const yy = y+dy, xx = x+dx;
+        if(yy<0||xx<0||yy>=N||xx>=N) continue;
+        const wt = (dy===0?2:1)*(dx===0?2:1);
+        s += f[yy*N+xx]*wt; wsum += wt;
+      }
+      o[y*N+x] = s/wsum;
+    }
+    return o;
+  }
+  function dist(a,b){
+    const fa = a.feat, fb = b.feat;
+    let s = 0;
+    for(let i=0;i<fa.length;i++){ const d = fa[i]-fb[i]; s += d*d; }
+    s /= fa.length;
+    return s*W_PIX + W_SZ*(Math.abs(Math.log(a.rh/b.rh)) + Math.abs(Math.log(a.rw/b.rw))) + W_Y*Math.abs(a.ry-b.ry);
+  }
+  function recognizeOne(g, smp){
+    let b1 = 1e9, l1 = null, b2 = 1e9, l2 = null;
+    for(const s of smp){
+      const d = dist(g, s);
+      if(d < b1){
+        if(s.c !== l1){ b2 = b1; l2 = l1; }
+        b1 = d; l1 = s.c;
+      } else if(s.c !== l1 && d < b2){ b2 = d; l2 = s.c; }
+    }
+    g.label = l1; g.d = b1; g.alt = l2;
+    g.uncertain = (b1 > ABS_THR) || (b2 < 1e9 && (b2-b1) < MARGIN_THR);
+  }
+  /* cut touching letters apart: try every sensible way of slicing a wide blob and keep the slicing the taught shapes explain best */
+  function pieceFrom(g, c0, c1, pg){
+    const W = g.w, H = g.h, m = g.mask;
+    let y0 = H, y1 = -1, area = 0;
+    for(let y=0;y<H;y++) for(let x=c0;x<c1;x++) if(m[y*W+x]){ if(y<y0) y0 = y; if(y>y1) y1 = y; area++; }
+    if(y1 < 0) return null;
+    const w = c1-c0, h = y1-y0+1, mask = new Uint8Array(w*h);
+    for(let y=0;y<h;y++) for(let x=0;x<w;x++) mask[y*w+x] = m[(y+y0)*W + c0+x];
+    const p = {x0:g.x0+c0, y0:g.y0+y0, w, h, area, mask, cx:g.x0+c0+w/2, cy:g.y0+y0+h/2, single:true,
+               line:g.line, label:null, locked:false, d:0, alt:null, uncertain:false};
+    const medH = pg.medH;
+    p.rh = h/medH; p.rw = w/medH; p.ry = (p.cy - pg.lines[g.line].mid)/medH;
+    p.feat = featOf(p);
+    return p;
+  }
+  function bestDist(p, smp){
+    let b = 1.5;
+    for(const s of smp){
+      if(Math.abs(Math.log(p.rh/s.rh)) > 0.6 || Math.abs(Math.log(p.rw/s.rw)) > 0.7) continue;
+      const d = dist(p, s);
+      if(d < b) b = d;
+    }
+    return b;
+  }
+  function splitOne(g, pg, smp){
+    const W = g.w, H = g.h, m = g.mask, medH = pg.medH;
+    const prof = new Int32Array(W);
+    for(let y=0;y<H;y++) for(let x=0;x<W;x++) prof[x] += m[y*W+x];
+    const minW = Math.max(3, Math.round(0.3*medH)), maxW = Math.round(1.5*medH);
+    let cand = [];
+    for(let x=minW;x<=W-minW;x++){
+      if(prof[x] <= prof[x-1] && prof[x] <= prof[x+1]) cand.push(x);
+    }
+    // plateaus: keep one cut per run
+    const ded = [];
+    cand.forEach(x=>{ if(ded.length && x-ded[ded.length-1] < 2){ if(prof[x] < prof[ded[ded.length-1]]) ded[ded.length-1] = x; } else ded.push(x); });
+    cand = ded.sort((a,b)=>prof[a]-prof[b]).slice(0,14).sort((a,b)=>a-b);
+    const cuts = [0, ...cand, W], K = cuts.length-1;
+    const cache = new Map();
+    const seg = (i,j)=>{
+      const key = i*100+j;
+      if(!cache.has(key)){
+        const w = cuts[j]-cuts[i];
+        let p = null, cost;
+        if(w < minW){ cost = 1.5 + SPLIT_LAMBDA + (minW-w)/medH; }
+        else{
+          p = pieceFrom(g, cuts[i], cuts[j], pg);
+          if(!p) cost = 1.5 + SPLIT_LAMBDA;
+          else{
+            cost = bestDist(p, smp) + SPLIT_LAMBDA;
+            if(w > maxW) cost += 0.5 + (w-maxW)/medH;
+          }
+        }
+        cache.set(key, {p, cost});
+      }
+      return cache.get(key);
+    };
+    const best = new Float64Array(K+1).fill(1e9), from = new Int32Array(K+1).fill(-1);
+    best[0] = 0;
+    for(let j=1;j<=K;j++){
+      for(let i=j-1;i>=0;i--){
+        if(cuts[j]-cuts[i] > 3*medH) break;
+        const c = best[i] + seg(i,j).cost;
+        if(c < best[j]){ best[j] = c; from[j] = i; }
+      }
+      if(from[j] < 0){ from[j] = j-1; best[j] = best[j-1] + seg(j-1,j).cost; }
+    }
+    const out = [];
+    for(let j=K;j>0;j=from[j]){ const p = seg(from[j],j).p; if(p) out.unshift(p); }
+    return out;
+  }
+  function splitWides(pg, smp){
+    if(pg.split) return;
+    const out = [];
+    pg.glyphs.forEach(g=>{
+      if(g.single){ out.push(g); return; }
+      splitOne(g, pg, smp).forEach(p=>out.push(p));
+    });
+    pg.glyphs = out; pg.split = true;
+    buildLines(pg);
+  }
+  function recognizeAll(pg){
+    const smp = samples();
+    if(!pg.split) splitWides(pg, smp);
+    pg.glyphs.forEach(g=>{ if(!g.locked) recognizeOne(g, smp); });
+  }
+  function buildText(pg){
+    const gl = pg.glyphs;
+    return pg.lines.map(l=>{
+      let s = '';
+      l.ids.forEach((id,k)=>{
+        const g = gl[id];
+        if(k>0){
+          const p = gl[l.ids[k-1]];
+          if(p.x0 - (g.x0+g.w) > pg.spaceThr) s += ' ';
+        }
+        if(g.label) s += g.label;
+      });
+      return s;
+    }).join('\n');
+  }
+
+  /* ---------- grouping similar shapes ---------- */
+  function cluster(pg, idxList){
+    const gl = pg.glyphs;
+    idxList = idxList || gl.map((g,i)=>i);
+    const cents = [];
+    const mk = g => ({feat:Float32Array.from(g.feat), rh:g.rh, rw:g.rw, ry:g.ry, n:1, members:[]});
+    idxList.forEach(ii=>{
+      const g = gl[ii];
+      let bi = -1, bd = 1e9;
+      for(let i=0;i<cents.length;i++){ const d = dist(g, cents[i]); if(d<bd){ bd=d; bi=i; } }
+      if(bi >= 0 && bd < CLUSTER_THR){
+        const c = cents[bi], n = c.n;
+        for(let k=0;k<c.feat.length;k++) c.feat[k] = (c.feat[k]*n + g.feat[k])/(n+1);
+        c.rh = (c.rh*n+g.rh)/(n+1); c.rw = (c.rw*n+g.rw)/(n+1); c.ry = (c.ry*n+g.ry)/(n+1);
+        c.n++;
+      } else cents.push(mk(g));
+    });
+    // one refinement pass
+    cents.forEach(c=>{ c.members = []; });
+    idxList.forEach(i=>{
+      const g = gl[i];
+      let bi = 0, bd = 1e9;
+      for(let k=0;k<cents.length;k++){ const d = dist(g, cents[k]); if(d<bd){ bd=d; bi=k; } }
+      cents[bi].members.push(i);
+    });
+    const out = cents.filter(c=>c.members.length);
+    out.forEach(c=>{
+      const n = c.members.length;
+      c.feat = new Float32Array(N*N); c.rh = c.rw = c.ry = 0;
+      c.members.forEach(i=>{
+        const g = gl[i];
+        for(let k=0;k<c.feat.length;k++) c.feat[k] += g.feat[k]/n;
+        c.rh += g.rh/n; c.rw += g.rw/n; c.ry += g.ry/n;
+      });
+      c.members.sort((a,b)=>dist(gl[a],c)-dist(gl[b],c));
+      c.rep = c.members[0];
+    });
+    out.sort((a,b)=>b.members.length - a.members.length);
+    return out;
+  }
+
+  /* ---------- drawing tiles ---------- */
+  let page = null, sess = null;
+
+  function drawGlyphTile(canvas, g){
+    // draw only this shape's own ink (neighbouring letters left out), smoothed
+    const m = document.createElement('canvas');
+    m.width = g.w + 4; m.height = g.h + 4;
+    const mx = m.getContext('2d'), im = mx.createImageData(m.width, m.height);
+    for(let i=0;i<im.data.length;i+=4){ im.data[i]=im.data[i+1]=im.data[i+2]=255; im.data[i+3]=255; }
+    for(let y=0;y<g.h;y++) for(let x=0;x<g.w;x++) if(g.mask[y*g.w+x]){
+      const k = ((y+2)*m.width + x+2)*4; im.data[k]=im.data[k+1]=im.data[k+2]=17;
+    }
+    mx.putImageData(im, 0, 0);
+    const box = 120, sc = Math.min(box/m.width, box/m.height);
+    canvas.width = Math.round(m.width*sc); canvas.height = Math.round(m.height*sc);
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(m, 0, 0, canvas.width, canvas.height);
+  }
+  function drawCrop(ctx, src, sx, sy, sw, sh, dx, dy, dw, dh){
+    const kx = dw/sw, ky = dh/sh;
+    let cx0 = Math.max(0,sx), cy0 = Math.max(0,sy);
+    let cx1 = Math.min(src.width, sx+sw), cy1 = Math.min(src.height, sy+sh);
+    if(cx1<=cx0 || cy1<=cy0) return;
+    ctx.drawImage(src, cx0, cy0, cx1-cx0, cy1-cy0, dx+(cx0-sx)*kx, dy+(cy0-sy)*ky, (cx1-cx0)*kx, (cy1-cy0)*ky);
+  }
+  function drawContext(canvas, g){
+    const W = 560, spanW = page.medH*13, spanH = page.medH*2.8;
+    const sc = W/spanW;
+    canvas.width = W; canvas.height = Math.round(spanH*sc);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    const sx = g.cx - spanW/2, sy = g.cy - spanH/2;
+    drawCrop(ctx, page.src, sx, sy, spanW, spanH, 0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = '#E8664F'; ctx.lineWidth = 2.5;
+    ctx.strokeRect((g.x0-sx)*sc-3, (g.y0-sy)*sc-3, g.w*sc+6, g.h*sc+6);
+  }
+
+  /* ---------- the labelling screen ---------- */
+  const overlay = $('teachOverlay');
+  const keysEl = $('teachKeys'), marksEl = $('teachMarks');
+  function buildKeys(){
+    LETTERS.forEach(ch=>{
+      const b = document.createElement('button');
+      b.className = 'tkey'; b.textContent = ch; b.dataset.ch = ch;
+      b.addEventListener('click', ()=>choose(ch));
+      keysEl.appendChild(b);
+    });
+    MARKS.forEach(ch=>{
+      const b = document.createElement('button');
+      b.className = 'tkey mark'; b.textContent = ch; b.dataset.ch = ch;
+      b.addEventListener('click', ()=>choose(ch));
+      marksEl.appendChild(b);
+    });
+  }
+  function itemGlyph(item){ return page.glyphs[item.rep]; }
+
+  function renderItem(){
+    const item = sess.items[sess.pos];
+    if(!item){ finishSession(); return; }
+    const g = itemGlyph(item);
+    $('teachTitle').textContent = (sess.mode === 'teach' ? 'Teach letters' : 'Check letters');
+    $('teachSub').textContent = (sess.mode === 'teach' ? 'Group ' : 'Shape ') + (sess.pos+1) + ' of ' + sess.items.length +
+      (sess.mode === 'teach' ? ' · ' + labelledCount() + ' of ' + page.nSingles + ' shapes named' : '');
+    $('teachCount').textContent = item.ids.length > 1 ? '× ' + item.ids.length + ' on this page' : '';
+    drawGlyphTile($('teachGlyph'), g);
+    drawContext($('teachCtx'), g);
+    const guess = item.guess;
+    $('teachQ').textContent = sess.mode === 'review'
+      ? (guess === '' ? 'I think this is not a letter. Right?' : 'I read this as “' + (guess||'?') + '”. Right?')
+      : 'Which letter is this? (the red box in the line)';
+    document.querySelectorAll('.tkey').forEach(k=>k.classList.toggle('guess', sess.mode==='review' && k.dataset.ch === guess));
+    $('teachOk').style.display = (sess.mode === 'review' && guess !== null && guess !== undefined) ? '' : 'none';
+    $('teachOk').textContent = '✓ Yes, “' + (guess === '' ? 'not a letter' : guess) + '”';
+    $('teachBack').disabled = sess.pos === 0;
+    overlay.scrollTop = 0;
+  }
+  function labelledCount(){
+    let n = 0;
+    sess.items.forEach(it=>{ if(it.label !== undefined) n += it.ids.length; });
+    return n + (sess.known || 0);
+  }
+
+  function choose(ch){
+    const item = sess.items[sess.pos];
+    if(!item) return;
+    item.label = ch;
+    item.ids.forEach(i=>{ const g = page.glyphs[i]; g.label = ch; g.locked = true; });
+    if(sess.mode === 'review'){
+      addSample(ch, itemGlyph(item));
+      // the new example may settle other queued shapes
+      const smp = samples();
+      for(let k=sess.pos+1;k<sess.items.length;k++){
+        const it = sess.items[k], g = itemGlyph(it);
+        recognizeOne(g, smp);
+        it.guess = g.label;
+        if(!g.uncertain){ it.label = g.label; it.auto = true; }
+      }
+      sess.items = sess.items.filter((it,k)=> k<=sess.pos || !it.auto);
+    }
+    sess.pos++;
+    renderItem();
+  }
+
+  function startTeach(){
+    if(!page) return;
+    if(!curFont){
+      const name = (prompt('Name this font (for example: Rashi – Ketzos HaChoshen)') || '').trim();
+      if(!name) return;
+      fonts[name] = {created: Date.now(), samples: []};
+      curFont = name; decoded = null; saveFonts(); refreshFontUI();
+    }
+    const singles = [];
+    page.glyphs.forEach((g,i)=>{ if(g.single) singles.push(i); });
+    page.nSingles = singles.length;
+    const groups = cluster(page, singles);
+    const smp = samples();
+    let known = 0;
+    const items = [];
+    groups.forEach(c=>{
+      if(smp.length){
+        recognizeOne(c, smp);
+        if(!c.uncertain){
+          c.members.forEach(i=>{ page.glyphs[i].label = c.label; });
+          known += c.members.length;
+          return;
+        }
+      }
+      items.push({ids:c.members, rep:c.rep, feat:c.feat, rh:c.rh, rw:c.rw, ry:c.ry});
+    });
+    page.glyphs.forEach(g=>{ g.locked = false; });
+    sess = {mode:'teach', items, pos:0, known};
+    if(!items.length){ showToast('Nothing new to teach on this page'); applyReadout(); return; }
+    openOverlay();
+    renderItem();
+  }
+
+  function startReview(){
+    if(!page) return;
+    const smp = samples();
+    const list = page.glyphs.map((g,i)=>({g,i})).filter(p=>p.g.uncertain && !p.g.locked)
+      .sort((a,b)=> (b.g.d + (b.g.alt?0:0)) - (a.g.d)).slice(0, 80);
+    if(!list.length){ showToast('Nothing looks uncertain'); return; }
+    sess = {mode:'review', items:list.map(p=>({ids:[p.i], rep:p.i, guess:p.g.label})), pos:0};
+    openOverlay();
+    renderItem();
+  }
+
+  function finishSession(){
+    if(!sess) return;
+    if(sess.mode === 'teach'){
+      let groups = 0;
+      sess.items.forEach(it=>{
+        if(it.label === undefined) return;
+        groups++;
+        const ids = it.ids.slice();
+        const pick = new Set();
+        [0, 0.2, 0.45, 0.7, 0.95].forEach(q=> pick.add(ids[Math.min(ids.length-1, Math.floor(q*ids.length))]));
+        addSample(it.label, {feat:it.feat, rh:it.rh, rw:it.rw, ry:it.ry});
+        pick.forEach(i=> addSample(it.label, page.glyphs[i]));
+      });
+      saveFonts();
+      page.glyphs.forEach(g=>{ g.locked = false; });
+      // keep the names given in this session
+      sess.items.forEach(it=>{ if(it.label !== undefined) it.ids.forEach(i=>{ page.glyphs[i].label = it.label; page.glyphs[i].locked = true; }); });
+      if(groups) showToast('Saved ' + groups + ' new shape groups to “' + curFont + '”');
+    } else saveFonts();
+    closeOverlay();
+    recognizeAll(page);
+    applyReadout();
+    sess = null;
+  }
+
+  function applyReadout(){
+    const text = buildText(page);
+    output.value = text;
+    charCount.textContent = text.length + ' characters';
+    resultsCard.style.display = 'block';
+    const unsure = page.glyphs.filter(g=>g.uncertain && !g.locked).length;
+    const rb = $('reviewBtn');
+    rb.style.display = '';
+    rb.textContent = unsure ? 'Check ' + unsure + ' unsure letters' : 'Check letters';
+    setStatus('Read with “' + curFont + '” — ' + unsure + ' letters unsure', false);
+    setProgress(null);
+    resultsCard.scrollIntoView({behavior:'smooth', block:'start'});
+  }
+
+  function openOverlay(){ overlay.style.display = 'block'; document.body.style.overflow = 'hidden'; }
+  function closeOverlay(){ overlay.style.display = 'none'; document.body.style.overflow = ''; }
+
+  /* ---------- entry points ---------- */
+  function prepare(){
+    if(!flattenedCanvas){ showToast('Scan or import a page first'); return false; }
+    setStatus('Finding letters…', true);
+    const seg = segment(flattenedCanvas);
+    if(!seg || !seg.glyphs.length){ setStatus('No text found on this page.', false); return false; }
+    const src = document.createElement('canvas');
+    src.width = flattenedCanvas.width; src.height = flattenedCanvas.height;
+    src.getContext('2d').drawImage(flattenedCanvas, 0, 0);
+    page = {src, glyphs:seg.glyphs, medH:seg.medH};
+    buildLines(page);
+    return true;
+  }
+  function activateChip(){
+    langChips.forEach(c=>{ c.classList.toggle('active', c.dataset.lang === 'taught'); });
+    currentLang = 'taught';
+    $('fontRow').style.display = 'flex';
+  }
+
+  window.taughtScan = function(){
+    activateChip();
+    // wait a tick so the status line paints before the heavy work
+    setTimeout(()=>{
+      if(!prepare()) return;
+      if(!samples().length){
+        showToast('Teach it some letters first');
+        startTeach();
+        return;
+      }
+      recognizeAll(page);
+      applyReadout();
+    }, 30);
+  };
+  $('teachBtn').addEventListener('click', ()=>{
+    activateChip();
+    setTimeout(()=>{ if(prepare()) startTeach(); setStatus('', false); }, 30);
+  });
+  $('reviewBtn').addEventListener('click', startReview);
+  $('teachDone').addEventListener('click', finishSession);
+  $('teachSkip').addEventListener('click', ()=>{ sess.pos++; renderItem(); });
+  $('teachBack').addEventListener('click', ()=>{ if(sess.pos>0){ sess.pos--; renderItem(); } });
+  $('teachIgnore').addEventListener('click', ()=>choose(''));
+  $('teachOk').addEventListener('click', ()=>{
+    const item = sess.items[sess.pos];
+    choose(item.guess);
+  });
+  $('teachOther').addEventListener('click', ()=>{
+    const v = prompt('Type the text for this shape (for example two letters stuck together):');
+    if(v !== null && v !== '') choose(v);
+  });
+
+  /* ---------- font management ---------- */
+  function refreshFontUI(){
+    const sel = $('fontSelect');
+    sel.innerHTML = '';
+    const names = Object.keys(fonts);
+    if(!names.length){
+      const o = document.createElement('option'); o.textContent = '(no font yet — tap New)'; o.value = ''; sel.appendChild(o);
+    }
+    names.forEach(n=>{
+      const o = document.createElement('option');
+      o.value = n; o.textContent = n + ' (' + fonts[n].samples.length + ')';
+      if(n === curFont) o.selected = true;
+      sel.appendChild(o);
+    });
+  }
+  $('fontSelect').addEventListener('change', e=>{
+    curFont = e.target.value; decoded = null; saveFonts();
+  });
+  $('fontNewBtn').addEventListener('click', ()=>{
+    const name = (prompt('Name for the new font (for example: Rashi – Vilna Shas)') || '').trim();
+    if(!name) return;
+    if(!fonts[name]) fonts[name] = {created: Date.now(), samples: []};
+    curFont = name; decoded = null; saveFonts(); refreshFontUI();
+  });
+  $('fontExportBtn').addEventListener('click', ()=>{
+    if(!curFont || !fonts[curFont]){ showToast('No font to export'); return; }
+    const blob = new Blob([JSON.stringify({name:curFont, font:fonts[curFont]})], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'scanlight-font-' + curFont.replace(/[^\w֐-׿-]+/g,'_') + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+  });
+  $('fontImportBtn').addEventListener('click', ()=> $('fontFileInput').click());
+  $('fontFileInput').addEventListener('change', async e=>{
+    const f = e.target.files[0]; e.target.value = '';
+    if(!f) return;
+    try{
+      const obj = JSON.parse(await f.text());
+      if(!obj || !obj.name || !obj.font || !Array.isArray(obj.font.samples)) throw new Error('bad');
+      let name = obj.name;
+      if(fonts[name]) name = name + ' (imported)';
+      fonts[name] = obj.font; curFont = name; decoded = null; saveFonts(); refreshFontUI();
+      showToast('Font imported');
+    }catch(err){ showToast('That file is not a Scanlight font'); }
+  });
+  langChips.forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      $('fontRow').style.display = chip.dataset.lang === 'taught' ? 'flex' : 'none';
+      if(chip.dataset.lang !== 'taught') $('reviewBtn').style.display = 'none';
+    });
+  });
+
+  buildKeys();
+  loadFonts();
+  refreshFontUI();
+
+  // test hooks
+  window.__teach = {segment, buildLines, cluster, recognizeAll, splitWides, buildText, samples, addSample, fonts:()=>fonts,
+    setThr:v=>{CLUSTER_THR=v;}, setPage:p=>{page=p;}, getPage:()=>page, prepare, startTeach, finishSession, choose, getSess:()=>sess,
+    setFont:n=>{ if(!fonts[n]) fonts[n]={created:Date.now(),samples:[]}; curFont=n; decoded=null; }, recognizeOne, dist};
+})();
+
 </script>
 </body>
 </html>
