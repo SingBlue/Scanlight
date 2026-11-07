@@ -310,18 +310,32 @@
   .teach-top{display:flex; align-items:center; justify-content:space-between; gap:10px;}
   .teach-top b{font-family:'Fraunces',serif; font-size:1.3rem;}
   .teach-sub{color:var(--text-dim); font-size:0.82rem; margin:4px 0 12px;}
-  .teach-glyph-row{display:flex; align-items:center; gap:14px; min-height:60px;}
-  .teach-glyph-row canvas{background:#fff; border-radius:10px; max-width:150px; max-height:130px;}
-  #teachCount{color:var(--text-dim); font-size:0.9rem;}
-  .teach-ctx{width:100%; border-radius:10px; margin:12px 0 6px; background:#fff; display:block;}
-  .teach-q{font-weight:600; margin:10px 0;}
-  .teach-keys{display:grid; grid-template-columns:repeat(7,1fr); gap:7px; direction:rtl; margin-bottom:10px;}
-  .tkey{font:inherit; font-size:1.5rem; padding:8px 0; border-radius:12px; border:1px solid var(--line); background:var(--surface-2); color:var(--text); cursor:pointer; min-height:48px;}
+  .teach-glyph-row{display:flex; align-items:center; gap:12px;}
+  .teach-glyph-row canvas{background:#fff; border-radius:10px; max-width:96px; max-height:96px; flex:none;}
+  .teach-side{flex:1; min-width:0;}
+  #teachCount{color:var(--text-dim); font-size:0.82rem;}
+  .teach-ctx{width:100%; border-radius:10px; margin:10px 0 4px; background:#fff; display:block;}
+  .teach-q{font-weight:600; margin:2px 0; font-size:0.95rem;}
+  .teach-keys{display:grid; grid-template-columns:repeat(9,1fr); gap:5px; direction:rtl; margin-bottom:6px;}
+  .teach-keys.marks{grid-template-columns:repeat(10,1fr);}
+  .tkey{font:inherit; font-size:1.3rem; padding:0; border-radius:10px; border:1px solid var(--line); background:var(--surface-2); color:var(--text); cursor:pointer; min-height:42px;}
   .tkey:active{background:var(--amber); color:#1C1305;}
   .tkey.guess{border-color:var(--amber); box-shadow:0 0 0 2px var(--amber) inset;}
-  .tkey.mark{font-size:1.25rem;}
-  .teach-actions{display:flex; gap:8px; margin-top:6px;}
+  .tkey.mark{font-size:1.05rem; min-height:38px;}
+  .teach-actions{display:flex; gap:6px; margin-top:6px;}
+  .teach-actions button{padding:10px 6px; font-size:0.8rem;}
   .teach-actions button:disabled{opacity:.4;}
+  .alpha-strip{display:flex; flex-wrap:wrap; gap:4px; direction:rtl; margin-bottom:10px;}
+  .achip{width:24px; height:26px; display:flex; align-items:center; justify-content:center; border-radius:7px; background:var(--surface-2); color:var(--text-dim); font-size:0.95rem;}
+  .achip.done{background:#2F5A3C; color:#DFF3E3;}
+  .achip.cur{background:var(--amber); color:#1C1305; font-weight:700;}
+  .alpha-prompt{font-weight:600; margin:4px 0 10px; display:flex; align-items:center; gap:10px;}
+  .alpha-big{font-size:2.6rem; color:var(--amber); line-height:1; font-weight:500;}
+  .alpha-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:8px;}
+  .atile{position:relative; border:2px solid var(--line); border-radius:12px; overflow:hidden; background:#fff; cursor:pointer;}
+  .atile canvas{display:block; width:100%; height:auto;}
+  .atile span{position:absolute; right:4px; bottom:2px; font-size:0.68rem; color:#555;}
+  .atile.sel{border-color:var(--amber); box-shadow:0 0 0 3px var(--amber) inset;}
 </style>
 </head>
 <body>
@@ -459,19 +473,37 @@
 
 <div class="teach-overlay" id="teachOverlay" style="display:none;">
   <div class="teach-box">
-    <div class="teach-top"><b id="teachTitle">Teach letters</b><button class="btn-primary small" id="teachDone" style="flex:none;">Done</button></div>
+    <div class="teach-top"><b id="teachTitle">Find each letter</b><button class="btn-primary small" id="teachDone" style="flex:none;">Done</button></div>
     <div class="teach-sub" id="teachSub"></div>
-    <div class="teach-glyph-row"><canvas id="teachGlyph"></canvas><div id="teachCount"></div></div>
-    <canvas id="teachCtx" class="teach-ctx"></canvas>
-    <div class="teach-q" id="teachQ"></div>
-    <button class="btn-primary" id="teachOk" style="display:none; width:100%; margin-bottom:10px;">✓ Right</button>
-    <div class="teach-keys" id="teachKeys"></div>
-    <div class="teach-keys marks" id="teachMarks"></div>
-    <div class="teach-actions">
-      <button class="btn-ghost small" id="teachBack">Back</button>
-      <button class="btn-ghost small" id="teachIgnore">Part / speck</button>
-      <button class="btn-ghost small" id="teachOther">Other…</button>
-      <button class="btn-ghost small" id="teachSkip">Skip</button>
+
+    <div id="alphaBox" style="display:none;">
+      <div class="alpha-strip" id="alphaStrip"></div>
+      <div class="alpha-prompt">Tap every shape that is <span class="alpha-big" id="alphaBig"></span></div>
+      <div class="alpha-grid" id="alphaGrid"></div>
+      <div class="teach-actions">
+        <button class="btn-ghost small" id="alphaMore">More</button>
+        <button class="btn-ghost small" id="alphaSkip">Not on page</button>
+        <button class="btn-primary small" id="alphaNext" style="flex:1.6;">Next ▸</button>
+      </div>
+    </div>
+
+    <div id="classicBox" style="display:none;">
+      <div class="teach-glyph-row">
+        <canvas id="teachGlyph"></canvas>
+        <div class="teach-side"><div id="teachCount"></div><div class="teach-q" id="teachQ"></div></div>
+      </div>
+      <canvas id="teachCtx" class="teach-ctx"></canvas>
+      <button class="btn-primary" id="teachOk" style="display:none; width:100%; margin-bottom:8px;">✓ Right</button>
+      <div class="teach-keys" id="teachKeys"></div>
+      <div class="teach-keys marks" id="teachMarks"></div>
+      <div class="teach-keys marks" id="teachDigits" style="display:none;"></div>
+      <div class="teach-actions">
+        <button class="btn-ghost small" id="teachBack">Back</button>
+        <button class="btn-ghost small" id="teachIgnore">Part / speck</button>
+        <button class="btn-ghost small" id="teachOther">Other…</button>
+        <button class="btn-ghost small" id="teachDigitsBtn">123</button>
+        <button class="btn-ghost small" id="teachSkip">Skip</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1267,8 +1299,9 @@
   const FONT_KEY = 'scanlight.fonts.v1';
   const CUR_KEY  = 'scanlight.fontCur';
   const LETTERS = ['א','ב','ג','ד','ה','ו','ז','ח','ט','י','כ','ך','ל','מ','ם','נ','ן','ס','ע','פ','ף','צ','ץ','ק','ר','ש','ת'];
-  const MARKS = ["'", '"', '.', ',', ':', ';', '-', '־', '(', ')', '[', ']', '{', '}', '*', '?', '!', '/', '•', '…',
-                 '0','1','2','3','4','5','6','7','8','9'];
+  const MARKS = ["'", '"', '.', ',', ':', ';', '-', '־', '(', ')', '[', ']', '{', '}', '*', '?', '!', '/', '•', '…'];
+  const DIGITS = ['0','1','2','3','4','5','6','7','8','9'];
+  const FREQ = ['י','ו','ה','ל','א','מ','ר','ת','ב','נ','ש','ד','ע','כ','ח','ק','פ','ס','ט','צ','ג','ז','ם','ן','ך','ף','ץ'];
   const W_PIX = 10, W_SZ = 0.5, W_Y = 0.5;
   let CLUSTER_THR = 0.42;           // how alike two shapes must be to share a group
   const ABS_THR = 0.62;               // best match farther than this = "not sure"
@@ -1408,6 +1441,8 @@
         const smallIsA = A.area < B.area;
         const S = smallIsA ? A : B, sw = smallIsA ? aw : bw, sh = smallIsA ? ah : bh;
         if(sh < 0.3*medH || S.area < 0.04*medH*medH) continue;
+        const Bg = smallIsA ? B : A, bgh = smallIsA ? bh : ah;
+        if(S.y1 < Bg.y0 + 0.25*bgh) continue;      // a mark sitting above the letter stays separate
         const ov = Math.min(A.x1,B.x1) - Math.max(A.x0,B.x0) + 1;
         if(ov < 0.5*sw) continue;
         const gap = Math.max(A.y0,B.y0) - Math.min(A.y1,B.y1) - 1;
@@ -1625,15 +1660,15 @@
       if(from[j] < 0){ from[j] = j-1; best[j] = best[j-1] + seg(j-1,j).cost; }
     }
     const out = [];
-    for(let j=K;j>0;j=from[j]){ const p = seg(from[j],j).p; if(p) out.unshift(p); }
-    return out;
+    for(let j=K;j>0;j=from[j]){ const p = seg(from[j],j).p; if(p){ p.fromSplit = true; out.unshift(p); } }
+    return {pieces:out, cost:best[K]};
   }
   function splitWides(pg, smp){
     if(pg.split) return;
     const out = [];
     pg.glyphs.forEach(g=>{
       if(g.single){ out.push(g); return; }
-      splitOne(g, pg, smp).forEach(p=>out.push(p));
+      splitOne(g, pg, smp).pieces.forEach(p=>out.push(p));
     });
     pg.glyphs = out; pg.split = true;
     buildLines(pg);
@@ -1642,6 +1677,23 @@
     const smp = samples();
     if(!pg.split) splitWides(pg, smp);
     pg.glyphs.forEach(g=>{ if(!g.locked) recognizeOne(g, smp); });
+    // a doubtful shape may really be a letter with a tick or a neighbour stuck to it: try cutting it
+    let changed = false;
+    const out = [];
+    pg.glyphs.forEach(g=>{
+      if(!g.locked && !g.fromSplit && g.uncertain && g.single && g.w >= 0.5*pg.medH && g.d > 0.5){
+        const r = splitOne(g, pg, smp);
+        if(r.pieces.length > 1 && r.cost < g.d + SPLIT_LAMBDA - 0.08){
+          r.pieces.forEach(p=>{ out.push(p); }); changed = true; return;
+        }
+      }
+      out.push(g);
+    });
+    if(changed){
+      pg.glyphs = out;
+      buildLines(pg);
+      pg.glyphs.forEach(g=>{ if(!g.locked) recognizeOne(g, smp); });
+    }
   }
   function buildText(pg){
     const gl = pg.glyphs;
@@ -1727,7 +1779,7 @@
     ctx.drawImage(src, cx0, cy0, cx1-cx0, cy1-cy0, dx+(cx0-sx)*kx, dy+(cy0-sy)*ky, (cx1-cx0)*kx, (cy1-cy0)*ky);
   }
   function drawContext(canvas, g){
-    const W = 560, spanW = page.medH*13, spanH = page.medH*2.8;
+    const W = 560, spanW = page.medH*11, spanH = page.medH*2.4;
     const sc = W/spanW;
     canvas.width = W; canvas.height = Math.round(spanH*sc);
     const ctx = canvas.getContext('2d');
@@ -1742,29 +1794,27 @@
   /* ---------- the labelling screen ---------- */
   const overlay = $('teachOverlay');
   const keysEl = $('teachKeys'), marksEl = $('teachMarks');
+  const digitsEl = $('teachDigits');
   function buildKeys(){
-    LETTERS.forEach(ch=>{
+    const mk = (ch, host, cls)=>{
       const b = document.createElement('button');
-      b.className = 'tkey'; b.textContent = ch; b.dataset.ch = ch;
+      b.className = 'tkey' + cls; b.textContent = ch; b.dataset.ch = ch;
       b.addEventListener('click', ()=>choose(ch));
-      keysEl.appendChild(b);
-    });
-    MARKS.forEach(ch=>{
-      const b = document.createElement('button');
-      b.className = 'tkey mark'; b.textContent = ch; b.dataset.ch = ch;
-      b.addEventListener('click', ()=>choose(ch));
-      marksEl.appendChild(b);
-    });
+      host.appendChild(b);
+    };
+    LETTERS.forEach(ch=>mk(ch, keysEl, ''));
+    MARKS.forEach(ch=>mk(ch, marksEl, ' mark'));
+    DIGITS.forEach(ch=>mk(ch, digitsEl, ' mark'));
   }
   function itemGlyph(item){ return page.glyphs[item.rep]; }
 
   function renderItem(){
+    $('alphaBox').style.display = 'none'; $('classicBox').style.display = '';
     const item = sess.items[sess.pos];
     if(!item){ finishSession(); return; }
     const g = itemGlyph(item);
-    $('teachTitle').textContent = (sess.mode === 'teach' ? 'Teach letters' : 'Check letters');
-    $('teachSub').textContent = (sess.mode === 'teach' ? 'Group ' : 'Shape ') + (sess.pos+1) + ' of ' + sess.items.length +
-      (sess.mode === 'teach' ? ' · ' + labelledCount() + ' of ' + page.nSingles + ' shapes named' : '');
+    $('teachTitle').textContent = 'Check letters';
+    $('teachSub').textContent = 'Shape ' + (sess.pos+1) + ' of ' + sess.items.length + ' · Done any time — the rest is matched automatically';
     $('teachCount').textContent = item.ids.length > 1 ? '× ' + item.ids.length + ' on this page' : '';
     drawGlyphTile($('teachGlyph'), g);
     drawContext($('teachCtx'), g);
@@ -1813,13 +1863,14 @@
     }
     if(sess.mode === 'review'){
       addSample(ch, itemGlyph(item));
+      if(item.feat) addSample(ch, {feat:item.feat, rh:item.rh, rw:item.rw, ry:item.ry});
       // the new example may settle other queued shapes
       const smp = samples();
       for(let k=sess.pos+1;k<sess.items.length;k++){
         const it = sess.items[k], g = itemGlyph(it);
         recognizeOne(g, smp);
         it.guess = g.label;
-        if(!g.uncertain){ it.label = g.label; it.auto = true; }
+        if(!g.uncertain){ it.label = g.label; it.auto = true; it.ids.forEach(i=>{ page.glyphs[i].label = g.label; page.glyphs[i].locked = true; }); }
       }
       sess.items = sess.items.filter((it,k)=> k<=sess.pos || !it.auto);
     }
@@ -1854,8 +1905,112 @@
       items.push({ids:c.members, rep:c.rep, feat:c.feat, rh:c.rh, rw:c.rw, ry:c.ry});
     });
     page.glyphs.forEach(g=>{ g.locked = false; });
-    sess = {mode:'teach', items, pos:0, known};
     if(!items.length){ showToast('Nothing new to teach on this page'); applyReadout(); return; }
+    startAlphabet(items, known);
+  }
+
+  /* ---------- stage 1: find an example of every letter ---------- */
+  function startAlphabet(items, known){
+    const counts = {};
+    samples().forEach(x=>{ counts[x.c] = (counts[x.c]||0) + 1; });
+    const need = FREQ.filter(ch=>!counts[ch]);
+    sess = {mode:'alpha', items, known, need, idx:0, sel:new Set(), shown:16, autoN:0, autoLetters:new Set(),
+            have:new Set(FREQ.filter(ch=>counts[ch]))};
+    if(!need.length){ startConfirm(); return; }
+    openOverlay();
+    renderAlpha();
+  }
+  const unnamed = ()=> sess.items.filter(it=>it.label === undefined);
+  function drawMaskTile(canvas, g){
+    const box = 64, sc = Math.min(box/(g.w+4), box/(g.h+4), 56/(1.5*page.medH));
+    const m = document.createElement('canvas'); m.width = g.w+4; m.height = g.h+4;
+    const mx = m.getContext('2d'), im = mx.createImageData(m.width, m.height);
+    for(let i=0;i<im.data.length;i+=4){ im.data[i]=im.data[i+1]=im.data[i+2]=255; im.data[i+3]=255; }
+    for(let y=0;y<g.h;y++) for(let x=0;x<g.w;x++) if(g.mask[y*g.w+x]){ const k = ((y+2)*m.width+x+2)*4; im.data[k]=im.data[k+1]=im.data[k+2]=17; }
+    mx.putImageData(im,0,0);
+    canvas.width = box; canvas.height = box;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0,0,box,box);
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    const w = m.width*sc, h = m.height*sc;
+    ctx.drawImage(m, (box-w)/2, (box-h)/2, w, h);
+  }
+  function renderAlpha(){
+    while(sess.idx < sess.need.length && (sess.have.has(sess.need[sess.idx]) || sess.autoLetters.has(sess.need[sess.idx]))) sess.idx++;
+    if(sess.idx >= sess.need.length){ startConfirm(); return; }
+    if(!unnamed().length){ finishSession(); return; }
+    $('classicBox').style.display = 'none'; $('alphaBox').style.display = '';
+    const ch = sess.need[sess.idx];
+    $('teachTitle').textContent = 'Find each letter';
+    const got = LETTERS.filter(l=>sess.have.has(l) || sess.autoLetters.has(l)).length;
+    $('teachSub').textContent = got + ' of 27 letters found · biggest groups shown first';
+    $('alphaBig').textContent = ch;
+    const strip = $('alphaStrip'); strip.innerHTML = '';
+    LETTERS.forEach(l=>{
+      const c = document.createElement('span');
+      c.className = 'achip' + ((sess.have.has(l)||sess.autoLetters.has(l)) ? ' done' : '') + (l === ch ? ' cur' : '');
+      c.textContent = l; strip.appendChild(c);
+    });
+    const pool = unnamed();
+    const grid = $('alphaGrid'); grid.innerHTML = '';
+    pool.slice(0, sess.shown).forEach(it=>{
+      const d = document.createElement('div');
+      d.className = 'atile' + (sess.sel.has(it) ? ' sel' : '');
+      const cv = document.createElement('canvas');
+      drawMaskTile(cv, itemGlyph(it));
+      const n = document.createElement('span'); n.textContent = '×' + it.ids.length;
+      d.appendChild(cv); d.appendChild(n);
+      d.addEventListener('click', ()=>{
+        if(sess.sel.has(it)) sess.sel.delete(it); else sess.sel.add(it);
+        d.classList.toggle('sel', sess.sel.has(it));
+        updateAlphaNext();
+      });
+      grid.appendChild(d);
+    });
+    $('alphaMore').style.display = pool.length > sess.shown ? '' : 'none';
+    updateAlphaNext();
+    overlay.scrollTop = 0;
+  }
+  function updateAlphaNext(){
+    $('alphaNext').textContent = sess.sel.size ? 'Next ▸ (' + sess.sel.size + ' picked)' : 'Next ▸';
+  }
+  function alphaNext(){
+    const ch = sess.need[sess.idx];
+    if(sess.sel.size){
+      sess.sel.forEach(it=>{
+        it.label = ch;
+        it.ids.forEach(i=>{ const g = page.glyphs[i]; g.label = ch; g.locked = true; });
+        addSample(ch, {feat:it.feat, rh:it.rh, rw:it.rw, ry:it.ry});
+        const m = it.ids;
+        [0.15, 0.5, 0.85].forEach(q=> addSample(ch, page.glyphs[m[Math.min(m.length-1, Math.floor(q*m.length))]]));
+      });
+      sess.have.add(ch);
+      // what it has learned may already explain other groups
+      const smp = samples();
+      unnamed().forEach(it=>{
+        recognizeOne(it, smp);
+        if(!it.uncertain && it.d < 0.45 && it.label !== null){
+          const lab = it.label;
+          it.auto = true;
+          it.ids.forEach(i=>{ page.glyphs[i].label = lab; page.glyphs[i].locked = true; });
+          sess.autoN += it.ids.length;
+          if(it.ids.length >= 3) sess.autoLetters.add(lab);
+        } else it.label = undefined;
+      });
+    }
+    sess.sel.clear(); sess.shown = 16; sess.idx++;
+    renderAlpha();
+  }
+
+  /* ---------- stage 2: confirm what is left ---------- */
+  function startConfirm(){
+    const smp = samples();
+    const rest = unnamed();
+    rest.forEach(it=>{ recognizeOne(it, smp); it.guess = it.label; it.label = undefined; });
+    // unnamed shapes it is already fairly sure about are left to automatic matching; ask about the doubtful, biggest first
+    const ask = rest.filter(it=>it.uncertain).sort((a,b)=>b.ids.length-a.ids.length);
+    if(!ask.length){ finishSession(); return; }
+    sess = {mode:'review', items:ask, pos:0, autoN:sess.autoN};
     openOverlay();
     renderItem();
   }
@@ -1863,7 +2018,7 @@
   function startReview(){
     if(!page) return;
     const smp = samples();
-    const list = page.glyphs.map((g,i)=>({g,i})).filter(p=>p.g.uncertain && !p.g.locked)
+    const list = page.glyphs.map((g,i)=>({g,i})).filter(p=>p.g.uncertain && !p.g.locked && p.g.h >= 0.35*page.medH)
       .sort((a,b)=> (b.g.d + (b.g.alt?0:0)) - (a.g.d)).slice(0, 80);
     if(!list.length){ showToast('Nothing looks uncertain'); return; }
     sess = {mode:'review', items:list.map(p=>({ids:[p.i], rep:p.i, guess:p.g.label})), pos:0};
@@ -1873,7 +2028,7 @@
 
   function finishSession(){
     if(!sess) return;
-    if(sess.mode === 'teach'){
+    if(sess.mode === 'teach'){      // (older one-by-one flow, no longer used)
       let groups = 0;
       sess.items.forEach(it=>{
         if(it.label === undefined) return;
@@ -1952,6 +2107,10 @@
   });
   $('reviewBtn').addEventListener('click', startReview);
   $('teachDone').addEventListener('click', finishSession);
+  $('alphaNext').addEventListener('click', alphaNext);
+  $('alphaSkip').addEventListener('click', ()=>{ sess.sel.clear(); sess.idx++; sess.shown = 16; renderAlpha(); });
+  $('alphaMore').addEventListener('click', ()=>{ sess.shown += 16; renderAlpha(); });
+  $('teachDigitsBtn').addEventListener('click', ()=>{ digitsEl.style.display = digitsEl.style.display === 'none' ? '' : 'none'; });
   $('teachSkip').addEventListener('click', ()=>{ sess.pos++; renderItem(); });
   $('teachBack').addEventListener('click', ()=>{ if(sess.pos>0){ sess.pos--; renderItem(); } });
   $('teachIgnore').addEventListener('click', ()=>choose(''));
