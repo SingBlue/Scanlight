@@ -469,7 +469,7 @@
     <div class="teach-keys marks" id="teachMarks"></div>
     <div class="teach-actions">
       <button class="btn-ghost small" id="teachBack">Back</button>
-      <button class="btn-ghost small" id="teachIgnore">Not a letter</button>
+      <button class="btn-ghost small" id="teachIgnore">Part / speck</button>
       <button class="btn-ghost small" id="teachOther">Other…</button>
       <button class="btn-ghost small" id="teachSkip">Skip</button>
     </div>
@@ -1267,7 +1267,8 @@
   const FONT_KEY = 'scanlight.fonts.v1';
   const CUR_KEY  = 'scanlight.fontCur';
   const LETTERS = ['א','ב','ג','ד','ה','ו','ז','ח','ט','י','כ','ך','ל','מ','ם','נ','ן','ס','ע','פ','ף','צ','ץ','ק','ר','ש','ת'];
-  const MARKS = ["'", '"', '.', ',', ':', '-', '(', ')', '*', '?', '!', '/'];
+  const MARKS = ["'", '"', '.', ',', ':', ';', '-', '־', '(', ')', '[', ']', '{', '}', '*', '?', '!', '/', '•', '…',
+                 '0','1','2','3','4','5','6','7','8','9'];
   const W_PIX = 10, W_SZ = 0.5, W_Y = 0.5;
   let CLUSTER_THR = 0.42;           // how alike two shapes must be to share a group
   const ABS_THR = 0.62;               // best match farther than this = "not sure"
@@ -1406,14 +1407,14 @@
         const bw = B.x1-B.x0+1, bh = B.y1-B.y0+1;
         const smallIsA = A.area < B.area;
         const S = smallIsA ? A : B, sw = smallIsA ? aw : bw, sh = smallIsA ? ah : bh;
-        if(sh < 0.4*medH || S.area < 0.05*medH*medH) continue;
+        if(sh < 0.3*medH || S.area < 0.04*medH*medH) continue;
         const ov = Math.min(A.x1,B.x1) - Math.max(A.x0,B.x0) + 1;
-        if(ov < 0.8*sw) continue;
+        if(ov < 0.5*sw) continue;
         const gap = Math.max(A.y0,B.y0) - Math.min(A.y1,B.y1) - 1;
-        if(gap > 0.3*medH) continue;
+        if(gap > 0.45*medH) continue;
         const uh = Math.max(A.y1,B.y1) - Math.min(A.y0,B.y0) + 1;
         const uw = Math.max(A.x1,B.x1) - Math.min(A.x0,B.x0) + 1;
-        if(uh > 1.4*medH || uw > 1.3*medH) continue;
+        if(uh > 1.6*medH || uw > 1.4*medH) continue;
         const ra = gfind(kept[ai]), rb = gfind(kept[bi]);
         if(ra !== rb) grp[rb] = ra;
       }
@@ -1553,7 +1554,7 @@
         b1 = d; l1 = s.c;
       } else if(s.c !== l1 && d < b2){ b2 = d; l2 = s.c; }
     }
-    g.label = l1; g.d = b1; g.alt = l2;
+    g.label = l1; g.d = b1; g.d2 = b2; g.alt = l2;
     g.uncertain = (b1 > ABS_THR) || (b2 < 1e9 && (b2-b1) < MARGIN_THR);
   }
   /* cut touching letters apart: try every sensible way of slicing a wide blob and keep the slicing the taught shapes explain best */
@@ -1655,7 +1656,7 @@
         if(g.label) s += g.label;
       });
       return s;
-    }).join('\n');
+    }).join('\n').replace(/''/g, '"');
   }
 
   /* ---------- grouping similar shapes ---------- */
@@ -1780,7 +1781,7 @@
   function labelledCount(){
     let n = 0;
     sess.items.forEach(it=>{ if(it.label !== undefined) n += it.ids.length; });
-    return n + (sess.known || 0);
+    return n + (sess.known || 0) + (sess.autoN || 0);
   }
 
   function choose(ch){
@@ -1788,6 +1789,28 @@
     if(!item) return;
     item.label = ch;
     item.ids.forEach(i=>{ const g = page.glyphs[i]; g.label = ch; g.locked = true; });
+    if(sess.mode === 'teach'){
+      // what you just taught may already explain other groups: name those automatically
+      sess.tmp = sess.tmp || [];
+      sess.tmp.push({c:ch, feat:item.feat, rh:item.rh, rw:item.rw, ry:item.ry});
+      const m = item.ids;
+      [0.2, 0.5, 0.8].forEach(q=>{ const g = page.glyphs[m[Math.min(m.length-1, Math.floor(q*m.length))]]; sess.tmp.push({c:ch, feat:g.feat, rh:g.rh, rw:g.rw, ry:g.ry}); });
+      const smp = samples().concat(sess.tmp);
+      for(let k=sess.pos+1;k<sess.items.length;k++){
+        const it = sess.items[k];
+        if(it.label !== undefined) continue;
+        recognizeOne(it, smp);
+        if(!it.uncertain && it.d < 0.45 && it.label !== null){
+          const lab = it.label;
+          it.autoLabel = lab; it.auto = true;
+          it.ids.forEach(i=>{ page.glyphs[i].label = lab; page.glyphs[i].locked = true; });
+          sess.autoN = (sess.autoN||0) + it.ids.length;
+        } else { it.label = undefined; }
+      }
+      sess.items = sess.items.filter((it,k)=> k<=sess.pos || !it.auto);
+      // restore label field used for "named" bookkeeping on kept items
+      sess.items.forEach(it=>{ if(it.auto) it.label = it.autoLabel; });
+    }
     if(sess.mode === 'review'){
       addSample(ch, itemGlyph(item));
       // the new example may settle other queued shapes
